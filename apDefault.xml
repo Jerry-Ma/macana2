@@ -1,0 +1,71 @@
+<analysis>
+  <!-- analysis steps -->
+  <analysisSteps>
+    <mapIndividualObservations> 1 </mapIndividualObservations>
+    <coaddObservations> 1 </coaddObservations>
+    <fitCoadditionToGaussian> 1 </fitCoadditionToGaussian>
+    <produceNoiseMaps> 1 </produceNoiseMaps>
+    <applyWienerFilter> 1 </applyWienerFilter>
+  </analysisSteps>
+
+  <!-- analysis parameters and switches -->
+  <parameters>
+    <despikeSigma> 30.00 </despikeSigma>
+    <lowpassFilterKnee> 4.0000 </lowpassFilterKnee>
+    <timeOffset> 0.00000 </timeOffset>
+    <timeChunk> 10.0000 </timeChunk>
+    <cutStd> 0.0000 </cutStd>
+    <neigToCut> 0</neigToCut>
+    <splineOrder> 4 </splineOrder>
+    <tOrder> 0 </tOrder>
+    <mask>20</mask>
+    <cleanPixelSize> 6.0 </cleanPixelSize>
+    <cleanStripe method="azel"> 0 </cleanStripe>
+    <controlChunk> 0.2 </controlChunk>
+    <resample> 3 </resample>
+    <approximateWeights> 1 </approximateWeights>
+    <masterGridJ2000_0> 0.00000 </masterGridJ2000_0>
+    <masterGridJ2000_1> 0.00000 </masterGridJ2000_1>
+    <pixelSize> 0.750000 </pixelSize>
+    <threadNumber> 3 </threadNumber>
+    <azelMap>1</azelMap>
+  </parameters>
+
+  <!-- apply a wiener filter -->
+  <wienerFilter>
+    <gaussianTemplate>1 </gaussianTemplate>
+    <gaussianTemplateFWHM> 1.44e-5 </gaussianTemplateFWHM>
+    <lowpassOnly> 1 </lowpassOnly>
+    <highpassOnly> 0 </highpassOnly>
+    <normalizeErrors> 1 </normalizeErrors>
+  </wienerFilter>
+
+  <!-- coaddition path and files -->
+  <coaddition>
+    <mapPath>./sample_files/lmt/coadded_maps/</mapPath>
+    <mapFile>coadded_test.nc</mapFile>
+  </coaddition>
+
+  <!-- noise realization path and files -->
+  <noiseRealization>
+    <nRealizations>100</nRealizations>
+    <noisePath>./sample_files/lmt/noise_maps/</noisePath>
+    <avgNoisePsdFile>average_noise_psd.nc</avgNoisePsdFile>
+    <avgNoiseHistFile>average_noise_histogram.nc</avgNoiseHistFile>
+  </noiseRealization>
+
+  <!-- observation filelist -->
+  <observations>
+    <rawDataPath>./sample_files/lmt/raw_data/</rawDataPath>
+    <bsPath>./sample_files/lmt/raw_data/</bsPath>
+    <mapPath>./sample_files/lmt/reduced_maps/</mapPath>
+    <nFiles> 1</nFiles>
+    <f0>
+      <fileName>sample_lmt.nc</fileName>
+      <bsName>sample_lmt.bstats</bsName>
+      <mapName>sample_map.nc</mapName>
+      <bsOffset_0>       0.0000000</bsOffset_0>
+      <bsOffset_1>       0.0000000</bsOffset_1>
+    </f0>
+  </observations>
+</analysis>

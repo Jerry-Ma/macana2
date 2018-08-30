@@ -1,0 +1,18 @@
+#!/usr/bin/env python
+import argparse,os
+
+parser = argparse.ArgumentParser(description='Create directories for AzTEC C++ pipeline', usage='%(prog)s working_dir')
+
+macana_dirs = ["raw_data", "pointing", "pointing/reduced_maps", "reduced_maps", "noise_maps", "coadded_maps"]
+
+parser.add_argument('wdir', metavar='wdir', type=str,help='Directory were the raw data and pointing data is located. \
+                                                          Science data should be located in a subdirectory named raw_data. \
+                                                          Pointing data should be located in a subdirectory named pointing.')
+
+args = parser.parse_args()
+fullpath=os.path.abspath(args.wdir)
+
+for idir in macana_dirs:
+	cdir = os.path.join(fullpath,idir)
+	if not os.path.exists(cdir):
+		os.mkdir(cdir)

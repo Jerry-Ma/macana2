@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+from aztec.macana.pointing import getLMTPointing
+from aztec.macana.bstats import createBstatsFile
+from aztec.macana.aptools import apFileCreator
+import argparse,os
+
+def listnc (directory):
+	from fnmatch import fnmatch
+	out = []
+	files = os.listdir(directory)
+	apath = os.path.abspath(directory)
+	for ifile in files:
+		if fnmatch(ifile,"*.nc"):
+			out.append(os.path.join(apath,ifile))
+	return out
+
+def makebstats(files):
+	for ifile in files:
+		print ifile
+		createBstatsFile(ifile)
+
+parser = argparse.ArgumentParser(description='Create pointing, bolostats and a base A.P. file for macana.', usage='%(prog)s working_dir source_name')
+
+parser.add_argument('wdir', metavar='wdir', type=str,help='Directory were the raw data and pointing data is located. \
+                                                          Science data should be located in a subdirectory named raw_data. \
+                                                          Pointing data should be located in a subdirectory named pointing.')
+parser.add_argument('sourceName', metavar='sourceName', type = str, help="Source name")
+parser.add_argument('-a',dest='apFile', action='store', help="Analysis Paramter File to be used as base") 
+args = parser.parse_args()
+
+working_dir = os.path.abspath(args.wdir)
+pointing_dir = os.path.join(working_dir,"pointing")
+
+pointFiles = listnc (pointing_dir)
+scienceFiles = listnc (os.path.join(working_dir, "raw_data"))
+if len (pointFiles) == 0 or len (scienceFiles) == 0:
+	print "Cannot locate pointing or science ncfiles, please check your directory structure"
+makebstats(pointFiles)
+makebstats	(scienceFiles)
+
+
+pFile = os.path.join(pointing_dir, "%s_interpotaled_pointing.txt" % args.sourceName)
+outApFile = os.path.join(working_dir, "ap%s.xml" % args.sourceName)
+getLMTPointing(os.path.join(working_dir, "raw_data"), pointing_dir, outfile = pFile, overwrite=True, apFile = os.path.join (os.environ['AZTEC_MACANA_PATH'],'apPointLMT.xml'))
+
+if args.apFile is None:
+	apFile = os.path.join (os.environ['AZTEC_MACANA_PATH'],'apScienceLMT.xml')
+else:
+	apFile = args.apFile
+ap = apFileCreator(apFile)
+ap.setWorkingDir(working_dir, point_file = pFile)
+ap.changeCoaddMap("%s.nc"%args.sourceName)
+ap.changeCoaddPath(os.path.join(working_dir, "coadded_maps"))
+ap.writeToFile(outApFile)
+
+
+ 
