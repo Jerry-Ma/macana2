@@ -30,6 +30,7 @@ Ubuntu 16.04 LTS, Debian Stretch and more recent linux distributions, a new vers
 ```
  sudo apt-get install build-essential libfftw3-dev libgsl0-dev libsuitesparse-dev libnetcdf-cxx-legacy-dev libccfits-dev subversion
 ```
+
 On RPM based system (like Fedora, OpenSuse, CentOS,...) you can use the YUM tool to install the compiler and libraries:
 
 ```
@@ -50,6 +51,7 @@ Now compile the code by entering to the *aztec_c++* directory and running the ma
 cd aztec_c++
 make
 ```
+
 #### Troubleshooting
 
 ##### 	Error Fatal: fitsio.h No such file or directory
@@ -86,6 +88,7 @@ It is strongly recommended (but not necessary) to add the binaries of the AzTEC 
  export PATH=$PATH:$AZTEC_MACANA_PATH/bin				#bash-like interpreter
  setenv PATH $PATH:$AZTEC_MACANA_PATH/bin				#csh-like interpreter
  ```
+ 
 this will allow you to run macana as a global command. 
 
 ### Setting up the python utilities
