@@ -1,0 +1,96 @@
+#!/usr/bin/env python
+from aztec.map import AztecMap
+from scipy.io.netcdf import netcdf_file as NetCDFFile
+import argparse,os, numpy
+
+
+def getArg (ncfile, key):
+    try:
+        return getattr(ncfile, key)
+    except:
+        return numpy.nan
+
+
+parser = argparse.ArgumentParser(description='Create a brief summary of the properties of an observation created by AzTEC C++ pipeline', usage='%(prog)s ncfile [output files]')
+
+parser.add_argument('ncfile', metavar='ncfile', type=str,help='AzTEC coadded map produced by macana')
+parser.add_argument('-o', metavar='outfile', type=str, help='Output file which will contain the summary information', default = "")
+
+args = parser.parse_args()
+
+amap = AztecMap(args.ncfile)
+nc = NetCDFFile(args.ncfile)
+
+source = getattr(nc,"source")
+date = getattr (nc,"analysisDate")
+intTime = getArg (nc,"totalIntTime")
+nFiles = getArg (nc, "nDataFiles")
+pixelSize = float(getattr(nc, "pixelSize"))
+noise = float(getArg(nc, "AverageRMS"))
+opacity = float(getArg(nc, "coaddAvgTau"))
+
+
+nsources = 0
+#try:
+wcut = getattr(nc,"SourceFindingCovCut")*100
+nsources = nc.dimensions['nSources']
+    
+#except:
+#    wcut = 50
+    
+print wcut
+amap.wcut(wcut)
+w = numpy.where (amap.fWeight > 0)
+mapArea = len(w[0]) * pixelSize
+mapArea /=3600.
+
+if nsources > 0:
+    sarray=[]
+    for i in range(nsources):
+        dic = {}
+        key = "pointSource_%d" %i
+        dic['Index'] = i
+        dic['RA'] = getattr(nc.variables[key],"centerRaAbs")*180./numpy.pi
+        dic['DEC'] = getattr(nc.variables[key],"centerDecAbs")*180./numpy.pi
+        dic['Flux'] = getattr(nc.variables[key],"centerFlux")
+        dic['SN'] = getattr(nc.variables[key],"centerS2N")
+        dic['Noise'] = getattr(nc.variables[key],"centerNoise")
+        sarray.append(dic)
+        
+    s2n = [x['SN'] for x in sarray]
+    ii = numpy.argsort(s2n)[-1::-1]
+    sarray = numpy.array(sarray)[ii]
+else:
+    sarray = None
+
+
+#Some format options
+nUnits = "Jy"
+if noise <0.05:
+    noise *= 1000
+    nUnits = "mJy"
+
+
+
+nc.close()
+sumStr = ""
+sumStr += "----------------------------Macana Summary--------------------------------\n\n"
+sumStr += "Input File:\t\t %s\n" %os.path.basename(args.ncfile) 
+sumStr += "Processing Date:\t %s\n" % date
+sumStr += "Source Name:\t\t %s\n" % source
+sumStr += "Integration time:\t %.1f seconds \n" % intTime
+sumStr += "Area at %d%% coverage:\t %f arcmin^2  \n" % (wcut, mapArea)
+sumStr += "Average noise:\t\t %.2f%s \n" % (noise, nUnits)
+sumStr += "Average opacity: \t %.2f\n" % opacity
+sumStr += "+----------------------Source Detection Summary ---------------------------+\n"
+if nsources >0:
+    sumStr += "+%s\t%s\t%s\t\t%s\t\t%s\t%s\n" %("Index","Flux", "Ra", "Dec", "SNR", "Noise") 
+    sumStr += "+%s\t%s\t%s\t\t%s\t\t%s\t%s\n\n" %("     ","[Jy]", "[Deg]", "[Deg]", "   ", "[Jy] ")
+    for i in range(nsources):
+        dic = sarray[i]
+        sumStr += " %d\t%.5f\t%.6f\t%.6f\t%.2f\t%.6f\n" %( dic['Index'], dic['Flux'], dic['RA'], dic['DEC'], dic['SN'], dic['Noise'])
+else:
+    sumStr += "No sources detected or no sourceFinding section in AP file\n"
+
+
+print sumStr
