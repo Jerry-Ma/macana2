@@ -33,7 +33,10 @@ opacity = float(getArg(nc, "coaddAvgTau"))
 nsources = 0
 #try:
 wcut = getattr(nc,"SourceFindingCovCut")*100
-nsources = nc.dimensions['nSources']
+try:
+    nsources = nc.dimensions['nSources']
+except KeyError:
+    pass
     
 #except:
 #    wcut = 50

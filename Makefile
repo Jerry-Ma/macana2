@@ -9,7 +9,7 @@ endif
 
 
 CC=g++
-CFLAGS=-c -g -Wall -DHAVE_INLINE -O2 -fexceptions -fopenmp  -std=c++0x
+CFLAGS=-c -Wall -DHAVE_INLINE -O2 -fexceptions -fopenmp  -std=c++11
 IFLAGS=-I include/ -I $(IPATH)/include -I Sky/Novas/  -I $(IPATH)/include/suitesparse
 LDFLAGS=-L $(PATH)/lib -l netcdf_c++ -l netcdf -lgsl -lgslcblas -l fftw3  -lcxsparse -lm  -fopenmp 
 LDFLAGS_FITS= -lcfitsio -l CCfits
