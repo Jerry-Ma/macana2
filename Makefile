@@ -38,8 +38,7 @@ $(EXECUTABLE): $(OBJECTS)
 	ln -s -f -T macana macanap
 	mkdir -p bin 
 	cp macana bin/
-	cp python/aztec/bin/lmt_reduce bin/
-	cp python/aztec/bin/macana_cdirs bin/
+	cp python/aztec/bin/* bin/
 		
 $(EXECUTABLE_FITS): $(OBJECTS_FITS)
 	$(CC) $(OBJECTS_FITS) -o $@ $(LDFLAGS) $(LDFLAGS_FITS)
