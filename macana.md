@@ -86,6 +86,7 @@ It is strongly recommended (but not necessary) to add the binaries of the AzTEC 
 
  ```
  export PATH=$PATH:$AZTEC_MACANA_PATH/bin				#bash-like interpreter
+ 
  setenv PATH $PATH:$AZTEC_MACANA_PATH/bin				#csh-like interpreter
  ```
  
@@ -114,6 +115,7 @@ After these python packages are installed you need to add the location of the ma
 
 ```
 export PYTHONPATH=$AZTEC_MACANA_PATH/python:$PYTHONPATH:$AZTEC_MACANA_PATH/bin				#bash-like interpreter
+
 setenv PYTHONPATH $AZTEC_MACANA_PATH/python:$PYTHONPATH:$AZTEC_MACANA_PATH/bin				#csh-like interpreter
 ```
 
