@@ -57,6 +57,9 @@ Coaddition::Coaddition(AnalParams* analParams)
   //initialize nrows and ncols
   nrows=0;
   ncols=0;
+
+  totalIntTime=0;
+  totalFiles = 0;
 }
 
 
@@ -82,6 +85,7 @@ bool Coaddition::coaddMaps()
   double maxRowVal=0., maxColVal=0.;
   string sourceNameString;
   individualMapsTau.resize(nFiles);
+  totalFiles = nFiles;
   for(int i=0;i<nFiles;i++){
     NcFile ncfid = NcFile(ap->getMapFileList(i).c_str(), NcFile::ReadOnly);
     NcDim* rowDimVar = ncfid.get_dim("nrows");
@@ -93,6 +97,7 @@ bool Coaddition::coaddMaps()
     NcAtt* sourceName = ncfid.get_att("source");
 
     individualMapsTau[i] = ncfid.get_att("ArrayAvgTau")->as_double(0);
+    totalIntTime += ncfid.get_att("IntTime")->as_double(0);
 
     //find minimum and maximum row and column values
     NcVar* rcpv = ncfid.get_var("rowCoordsPhys");
@@ -477,6 +482,8 @@ bool Coaddition::writeCoadditionToNcdf()
   }
 
   ncfid.add_att("coaddAvgTau", coaddAvgTau);
+  ncfid.add_att("nDataFiles", totalFiles);
+  ncfid.add_att("totalIntTime", totalIntTime);
   cerr << "Coaddition::writeMapsToNcdf(): Maps written to ";
   cerr << ncdfFile << endl;
 

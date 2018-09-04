@@ -45,6 +45,7 @@ Observation::Observation(AnalParams* analParams)
 
 	atmTemplate = NULL;
 	saveTimestreams = ap->getSaveTimestreams();
+	fullIntTime = 0;
 }
 
 
@@ -88,6 +89,10 @@ bool Observation::generateMaps(Array* a, Telescope* tel)
 	  colCoordsPhys.resize(ncols);
 	  for(int i=0;i<nrows;i++) rowCoordsPhys[i] = (i-(nrows+1.)/2.)*pixelSize;
 	  for(int i=0;i<ncols;i++) colCoordsPhys[i] = (i-(ncols+1.)/2.)*pixelSize;
+
+	  //Assign the actual time the observation took
+
+	  fullIntTime = (double)array->detectors[0].hValues.size()/64.;
 
 	  //sanity check
 	  if(nrows > 36000 ||
@@ -370,6 +375,7 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
   ncfid.add_att("MasterGrid[0]",masterGrid[0]);
   ncfid.add_att("MasterGrid[1]",masterGrid[1]);
   ncfid.add_att ("ArrayAvgTau", array->getAvgTau());
+  ncfid.add_att("IntTime", fullIntTime);
  
   cerr << "Observation::writeMapsToNcdf(): Maps written to ";
   cerr << ncdfFilename << endl;

@@ -1,7 +1,17 @@
+OS:=$(shell uname -s)
+IPATH:=
+ifeq ($(OS), Linux)
+	IPATH+=/usr
+endif
+ifeq ($(OS), Darwin)
+	IPATH+=/opt/local
+endif
+
+
 CC=g++
 CFLAGS=-c -g -Wall -DHAVE_INLINE -O2 -fexceptions -fopenmp  -std=c++0x
-IFLAGS=-I include/ -I /usr/include -I Sky/Novas/  
-LDFLAGS=-L /usr/lib -l netcdf_c++ -l netcdf -lgsl -lgslcblas -l fftw3  -lcxsparse -lm  -fopenmp 
+IFLAGS=-I include/ -I $(IPATH)/include -I Sky/Novas/  -I $(IPATH)/include/suitesparse
+LDFLAGS=-L $(PATH)/lib -l netcdf_c++ -l netcdf -lgsl -lgslcblas -l fftw3  -lcxsparse -lm  -fopenmp 
 LDFLAGS_FITS= -lcfitsio -l CCfits
 
 
@@ -21,7 +31,7 @@ SOURCES_FITS=Utilities/fitswriter.cpp
 OBJECTS_FITS=$(SOURCES_FITS:.cpp=.o)
 EXECUTABLE_FITS=fitswriter
 
-all: $(EXECUTABLE)  $(EXECUTABLE_FITS) 
+all: $(EXECUTABLE)  $(EXECUTABLE_FITS)
 
 $(EXECUTABLE): $(OBJECTS) 
 	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)  

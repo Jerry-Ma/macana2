@@ -6,6 +6,7 @@
 #include <exception>
 #include <CCfits/CCfits>
 using namespace std;
+
 #include "nr3.h"
 
 #define PI 3.1415926535897932384626433
@@ -82,6 +83,9 @@ bool writeFits(string fitsFile, MatDoub &arr, double xpixsz, double ypixsz,
   pFits->pHDU().addKey("CRUNIT2", "deg", "");
   pFits->pHDU().addKey("CDELT1", -xpixsz, "Transformation matrix element");
   pFits->pHDU().addKey("CDELT2", ypixsz, "Transformation matrix element");
+  pFits->pHDU().addKey("TELESCOP", "LMT/GTM", "Telescope");
+  pFits->pHDU().addKey("INSTRUMT", "AzTEC", "");
+  pFits->pHDU().addKey("WAVELEN","1.1mm","");
 
   return 1;
 }

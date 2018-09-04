@@ -29,7 +29,7 @@ using namespace std;
 #include "CleanSelector.h"
 #include "WienerFilter.h"
 
-#define VERSION "0.8-2018p"
+#define VERSION "1.0-2018S0"
 
 
 int main(int nArgs, char* args[])

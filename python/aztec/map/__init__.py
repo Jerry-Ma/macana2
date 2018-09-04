@@ -1,5 +1,5 @@
 from aztec import *
-from netCDF4 import Dataset as NetCDFFile
+from scipy.io.netcdf import netcdf_file as NetCDFFile
 from scipy.io.idl import readsav
 
 

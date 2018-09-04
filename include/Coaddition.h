@@ -42,6 +42,8 @@ class Coaddition
   //tau information
   VecDoub individualMapsTau;
   double coaddAvgTau;
+  double totalIntTime;
+  int totalFiles;
 
  public:
   Map* signal;                 ///<coadded unfiltered signal map

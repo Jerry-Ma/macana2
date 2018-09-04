@@ -43,6 +43,7 @@ You can obtain the code from the LMT proposal system site [(www.lmtobservatory.o
 ```
 svn co svn://www.lmtobservatory.org/aztec_c++
 ```
+
 Now compile the code by entering to the *aztec_c++* directory and running the make utility:
 
 ```
@@ -55,29 +56,36 @@ make
 This error is frequent on RPM-based distribution when the cfitsio include files are stored in /usr/include/cfitsio instead of the default path for include files (/usr/include). There are two ways to workaround this problem:
 
  1. Make asymbolic link to header files (you need root privileges):
+ 
  ```
  sudo cp --symbolic-link /usr/include/cfitsio/* /usr/include
  ```
  2. Modify the macana Makefile to look for the cfitsio include file in the appropriate path. Open the Makefile in your favorite text editor and change the **IFLAGS** variable at line 3 to:
+ 
  ```
  IFLAGS=-I include/ -I /usr/include -I Sky/Novas/  -I /usr/include/cfitsio
  ```
 
 
 ### Setting up environment variables
-In order to work correctly macana requires to set the AZTEC_MACANA_PATH environment variable. This variable must contain the absolute path to the folder containing macana distribution. For bash-like terminal interpreter you can add a the following  line a the end you ~/.bashrc file:
-```
-export AZTEC_MACANA_PATH="/home/myuser/some-path/aztec_c++"
-```
-just replace the /home/myuser/some-path with the actual path where you downloaded macana. For a csh-like terminal interpreter, edit the ~/.cshrc file and add the line:
-```
-setenv AZTEC_MACANA_PATH "/home/myuser/some-path/aztec_c++"
-```
-It is strongly recommended (but not necessary) to add the binaries of the AzTEC C++ pipeline to your PATH environment variable:
-```
-export PATH=$PATH:$AZTEC_MACANA_PATH/bin				#bash-like interpreter
-setenv PATH $PATH:$AZTEC_MACANA_PATH/bin				#csh-like interpreter
-```
+In order to work correctly macana requires to set the `AZTEC_MACANA_PATH` environment variable. This variable must contain the absolute path to the folder containing macana distribution. For bash-like terminal interpreter you can add a the following  line a the end you `$HOME/.bashrc` file:
+
+ ```
+ export AZTEC_MACANA_PATH="/home/myuser/some-path/aztec_c++"
+ ```
+ 
+just replace the `/home/myuser/some-path` with the actual path where you downloaded macana. For a csh-like terminal interpreter, edit the `$HOME/.cshrc` file and add the line:
+
+ ```
+ setenv AZTEC_MACANA_PATH "/home/myuser/some-path/aztec_c++"
+ ```
+ 
+It is strongly recommended (but not necessary) to add the binaries of the AzTEC C++ pipeline to your `PATH` environment variable:
+
+ ```
+ export PATH=$PATH:$AZTEC_MACANA_PATH/bin				#bash-like interpreter
+ setenv PATH $PATH:$AZTEC_MACANA_PATH/bin				#csh-like interpreter
+ ```
 this will allow you to run macana as a global command. 
 
 ### Setting up the python utilities
@@ -106,8 +114,18 @@ export PYTHONPATH=$AZTEC_MACANA_PATH/python:$PYTHONPATH:$AZTEC_MACANA_PATH/bin		
 setenv PYTHONPATH $AZTEC_MACANA_PATH/python:$PYTHONPATH:$AZTEC_MACANA_PATH/bin				#csh-like interpreter
 ```
 
+### Updating the pipeline
+
+The pipeline is under continous development. It is strongly recommended to update your working copy from the repository:
+
+```
+cd $AZTEC_MACANA_PATH
+svn update
+```
+
 ## Running Macana
 
-The input to the macana file is a xml file containing the parameter and the location of the observation files 
+The input to the macana file is a xml file containing the parameter and the location of the observation files. The macana distribution contain a sample observation under the `sample_files/lmt` directory. You can run macana over the test data using the following commands:
 
-> Written with [StackEdit](https://stackedit.io/).
+    cd $AZTEC_MACANA_PATH
+    macana apDefault.xml

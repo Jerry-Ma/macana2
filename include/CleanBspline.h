@@ -6,7 +6,7 @@
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_bspline.h>
 #include <gsl/gsl_multifit_nlin.h>
-#include <suitesparse/cs.h>
+#include <cs.h>
 
 
 

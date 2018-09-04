@@ -475,7 +475,7 @@ NRMat3d<T>::~NRMat3d()
 
 typedef int Int; // 32 bit integer
 typedef unsigned int Uint;
-
+typedef unsigned int uint;
 #ifdef _MSC_VER
 typedef __int64 Llong; // 64 bit integer
 typedef unsigned __int64 Ullong;

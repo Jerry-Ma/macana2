@@ -38,7 +38,7 @@ class Observation
   Map* weight;                 ///<the weight map (1/error^2)
   Map* kernel;                 ///<kernel map
   Map* inttime;                ///<inttime map (in seconds)
-  MatDoub noiseMaps;           ///<array of noise map for each observaiton
+  MatDoub noiseMaps;           ///<array of noise map for each observation
   Map* atmTemplate;
 
   //absolute coordinates
@@ -49,6 +49,8 @@ class Observation
 
   Array * array;
   Telescope *tel;
+
+  double fullIntTime;
 
   //methods
   Observation(AnalParams* ap);
