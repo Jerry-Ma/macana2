@@ -2,13 +2,14 @@ OS:=$(shell uname -s)
 IPATH:=
 ifeq ($(OS), Linux)
 	IPATH+=/usr
+	CC=g++
 endif
 ifeq ($(OS), Darwin)
 	IPATH+=/opt/local
+	CC=clang++-6.0
 endif
 
 
-CC=g++
 CFLAGS=-c -Wall -DHAVE_INLINE -O2 -fexceptions -fopenmp  -std=c++11
 IFLAGS=-I include/ -I $(IPATH)/include -I Sky/Novas/  -I $(IPATH)/include/suitesparse
 LDFLAGS=-L $(PATH)/lib -l netcdf_c++ -l netcdf -lgsl -lgslcblas -l fftw3  -lcxsparse -lm  -fopenmp 
@@ -35,7 +36,6 @@ all: $(EXECUTABLE)  $(EXECUTABLE_FITS)
 
 $(EXECUTABLE): $(OBJECTS) 
 	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)  
-	ln -s -f -T macana macanap
 	mkdir -p bin 
 	cp macana bin/
 	cp python/aztec/bin/* bin/
