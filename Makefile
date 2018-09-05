@@ -6,7 +6,7 @@ ifeq ($(OS), Linux)
 endif
 ifeq ($(OS), Darwin)
 	IPATH+=/opt/local
-	CC=clang++-6.0
+	CC=clang++-mp-6.0
 endif
 
 
