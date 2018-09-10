@@ -7,7 +7,7 @@ The AzTEC millimeter wavelength camera is a 144 element bolometer array configur
 
 ### Prerequisites
 
-Macana has been extensively tested on the Long Term (LTS) versions of Ubuntu and moderately tested on another few other linux distributions. Also it is possible to install it on MacOs using the **MacPorts** system (see [this page](macanaOSX.html). In general, you require to install following software and libraries:
+Macana has been extensively tested on the Long Term (LTS) versions of Ubuntu and moderately tested on another few other linux distributions. Also it is possible to install it on MacOs using the **MacPorts** system (see [this page](macanaOSX.html)). In general, you require to install following software and libraries:
 
  * GNUC C++ compiler (GCC)
  * OpenMP

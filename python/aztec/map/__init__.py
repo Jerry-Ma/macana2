@@ -149,6 +149,8 @@ class AztecMap(Map):
                 self.nSources = len(ncFile.dimensions['nSources'])
             except KeyError:
                 self.nSources = 0
+	    except TypeError:
+		self.nSources = ncFile.dimensions['nSources']
             
             try:
                 cflux = ncFile.variables['signal'].getncattr ("amplitude")

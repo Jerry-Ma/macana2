@@ -53,7 +53,20 @@
     <avgNoisePsdFile>average_noise_psd.nc</avgNoisePsdFile>
     <avgNoiseHistFile>average_noise_histogram.nc</avgNoiseHistFile>
   </noiseRealization>
-
+  <!-- Source Finding -->
+  <postReductionAnalysis>
+    <sourceFinding>
+     <beamSize>4.12e-05</beamSize>
+     <covCut>0.5</covCut>
+     <snglSourceWin>2e-05</snglSourceWin>
+     <sourceSigma>3.5</sourceSigma>
+     <negativeToo>0</negativeToo>
+     <mapNegative>0</mapNegative>
+     <centroidSources>1</centroidSources>
+     <fitGaussians>1</fitGaussians>
+     <psSideLength>40</psSideLength>
+   </sourceFinding>
+ </postReductionAnalysis>
   <!-- observation filelist -->
   <observations>
     <rawDataPath>./sample_files/lmt/raw_data/</rawDataPath>

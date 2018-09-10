@@ -23,7 +23,7 @@
     <cleanStripe method="azel"> 0 </cleanStripe>
     <controlChunk> 0.2 </controlChunk>
     <resample> 1</resample>
-    <approximateWeights> 1</approximateWeights>
+    <approximateWeights> 0</approximateWeights>
     <masterGridJ2000_0> 0.00000 </masterGridJ2000_0>
     <masterGridJ2000_1> 0.00000 </masterGridJ2000_1>
     <pixelSize> 1.0000 </pixelSize>
