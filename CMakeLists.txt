@@ -16,13 +16,13 @@ set(include ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 ## cmake magics to resolve deps
 # automatic git version
-#find_package(Git)
-#set(VERSION_UPDATE_FROM_GIT 1)
-#include(${extern}/cmake-git-semver/GetVersionFromGitTag.cmake)
-#message("==================================================")
-#message("PROJECT NAME: " ${CMAKE_PROJECT_NAME})
-#message("VERSION     : " ${${CMAKE_PROJECT_NAME}_VERSION_STRING_FULL})
-#message("==================================================")
+find_package(Git)
+set(VERSION_UPDATE_FROM_GIT 1)
+include(${cmake_modules}/cmake-git-semver/GetVersionFromGitTag.cmake)
+message("==================================================")
+message("PROJECT NAME: " ${CMAKE_PROJECT_NAME})
+message("VERSION     : " ${${CMAKE_PROJECT_NAME}_VERSION_STRING_FULL})
+message("==================================================")
 # TODO openmp
 # find_package(OpenMP REQUIRED)
 set(OpenMP_C "${CMAKE_C_COMPILER}")
