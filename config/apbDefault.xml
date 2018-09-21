@@ -1,0 +1,780 @@
+<analysis>
+<!-- start with analysis parameters and switches -->
+  <parameters>
+    <despikeSigma> 15.0 </despikeSigma>
+    <lowpassFilterKnee> 8.0 </lowpassFilterKnee>
+    <timeOffset> 0.125 </timeOffset>
+    <timeChunk> 0 </timeChunk>
+    <cutStd> 0 </cutStd>
+    <neigToCut> 3 </neigToCut>
+    <splineOrder> 0 </splineOrder>
+    <tOrder> 0 </tOrder>
+    <cleanPixelSize> 8 </cleanPixelSize>
+    <cleanStripe> 1 </cleanStripe>
+    <controlChunk> 0.01 </controlChunk>
+    <resample> 1.0 </resample>
+    <approximateWeights> 1 </approximateWeights>
+    <masterGridJ2000_0> 0.0 </masterGridJ2000_0>
+    <masterGridJ2000_1> 0.0 </masterGridJ2000_1>
+    <pixelSize> 1.5 </pixelSize>
+    <noiseMapsPerObs> 0 </noiseMapsPerObs>
+    <azelMap> 1 </azelMap>
+    <threadNumber> 1 </threadNumber>
+    <cutTurnArounds> 1 </cutTurnArounds>
+    <cutSamplesAtEndOfScans> 40 </cutSamplesAtEndOfScans>
+    <writeBeammapToNcdf> 1 </writeBeammapToNcdf>
+    <cleanIterationCap> 1 </cleanIterationCap>
+    <cleanIterationCutoff> 0.05 </cleanIterationCutoff>
+  </parameters>
+  <!-- observation filelist -->
+  <observations>
+    <rawDataPath>/data/beammaps/ES3/</rawDataPath>
+    <bsPath>/data/vishnu/Toltec/BolostatsInput/</bsPath>
+    <outBeammapInfoPath>/data/vishnu/Toltec/BolostatsTxtOutput/</outBeammapInfoPath>
+    <outBeammapNcdfPath>/data/vishnu/Toltec/</outBeammapNcdfPath>
+    <nFiles>1</nFiles>
+    <f1>
+      <fileName>26977/26977.nc</fileName>
+      <bsName>26977.bstats</bsName>
+      <outBeammapInfoName>26977.txt</outBeammapInfoName>
+      <outBeammapNcdfName>26977beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f1>
+    <f0>
+      <fileName>27099/27099.nc</fileName>
+      <bsName>27099.bstats</bsName>
+      <outBeammapInfoName>27099.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27099beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f0>
+    <f2>
+      <fileName>27101/27101.nc</fileName>
+      <bsName>27101.bstats</bsName>
+      <outBeammapInfoName>27101.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27101beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f2>
+    <f3>
+      <fileName>27103/27103.nc</fileName>
+      <bsName>27103.bstats</bsName>
+      <outBeammapInfoName>27103.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27103beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f3>
+    <f4>
+      <fileName>27105/27105.nc</fileName>
+      <bsName>27105.bstats</bsName>
+      <outBeammapInfoName>27105.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27105beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f4>
+    <f5>
+      <fileName>27107/27107.nc</fileName>
+      <bsName>27107.bstats</bsName>
+      <outBeammapInfoName>27107.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27107beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f5>
+    <f6>
+      <fileName>27109/27109.nc</fileName>
+      <bsName>27109.bstats</bsName>
+      <outBeammapInfoName>27109.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27109beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f6>
+    <f7>
+      <fileName>27220/27220.nc</fileName>
+      <bsName>27220.bstats</bsName>
+      <outBeammapInfoName>27220.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27220beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f7>
+    <f8>
+      <fileName>27258/27258.nc</fileName>
+      <bsName>27258.bstats</bsName>
+      <outBeammapInfoName>27258.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27258beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f8>
+    <f9>
+      <fileName>27277/27277.nc</fileName>
+      <bsName>27277.bstats</bsName>
+      <outBeammapInfoName>27277.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27277beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f9>
+    <f10>
+      <fileName>27307/27307.nc</fileName>
+      <bsName>27307.bstats</bsName>
+      <outBeammapInfoName>27307.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27307beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f10>
+    <f11>
+      <fileName>27337/27337.nc</fileName>
+      <bsName>27337.bstats</bsName>
+      <outBeammapInfoName>27337.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27337beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f11>
+    <f12>
+      <fileName>27345/27345.nc</fileName>
+      <bsName>27345.bstats</bsName>
+      <outBeammapInfoName>27345.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27345beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f12>
+    <f13>
+      <fileName>27364/27364.nc</fileName>
+      <bsName>27364.bstats</bsName>
+      <outBeammapInfoName>27364.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27364beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f13>
+    <f14>
+      <fileName>27383/27383.nc</fileName>
+      <bsName>27383.bstats</bsName>
+      <outBeammapInfoName>27383.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27383beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f14>
+    <f15>
+      <fileName>27402/27402.nc</fileName>
+      <bsName>27402.bstats</bsName>
+      <outBeammapInfoName>27402.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27402beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f15>
+    <f16>
+      <fileName>27439/27439.nc</fileName>
+      <bsName>27439.bstats</bsName>
+      <outBeammapInfoName>27439.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27439beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f16>
+    <f17>
+      <fileName>27463/27463.nc</fileName>
+      <bsName>27463.bstats</bsName>
+      <outBeammapInfoName>27463.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27463beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f17>
+    <f18>
+      <fileName>27613/27613.nc</fileName>
+      <bsName>27613.bstats</bsName>
+      <outBeammapInfoName>27613.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27613beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f18>
+    <f19>
+      <fileName>27642/27642.nc</fileName>
+      <bsName>27642.bstats</bsName>
+      <outBeammapInfoName>27642.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27642beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f19>
+    <f20>
+      <fileName>27679/27679.nc</fileName>
+      <bsName>27679.bstats</bsName>
+      <outBeammapInfoName>27679.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27679beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f20>
+    <f21>
+      <fileName>27710/27710.nc</fileName>
+      <bsName>27710.bstats</bsName>
+      <outBeammapInfoName>27710.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27710beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f21>
+    <f22>
+      <fileName>27714/27714.nc</fileName>
+      <bsName>27714.bstats</bsName>
+      <outBeammapInfoName>27714.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27714beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f22>
+    <f23>
+      <fileName>27736/27736.nc</fileName>
+      <bsName>27736.bstats</bsName>
+      <outBeammapInfoName>27736.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27736beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f23>
+    <f24>
+      <fileName>27764/27764.nc</fileName>
+      <bsName>27764.bstats</bsName>
+      <outBeammapInfoName>27764.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27764beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f24>
+    <f25>
+      <fileName>27799/27799.nc</fileName>
+      <bsName>27799.bstats</bsName>
+      <outBeammapInfoName>27799.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27799beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f25>
+    <f26>
+      <fileName>27839/27839.nc</fileName>
+      <bsName>27839.bstats</bsName>
+      <outBeammapInfoName>27839.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27839beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f26>
+    <f27>
+      <fileName>27934/27934.nc</fileName>
+      <bsName>27934.bstats</bsName>
+      <outBeammapInfoName>27934.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27934beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f27>
+    <f28>
+      <fileName>27948/27948.nc</fileName>
+      <bsName>27948.bstats</bsName>
+      <outBeammapInfoName>27948.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27948beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f28>
+    <f29>
+      <fileName>27948/27948.nc</fileName>
+      <bsName>27948.bstats</bsName>
+      <outBeammapInfoName>27948.txt</outBeammapInfoName>
+      <outBeammapNcdfName>27948beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f29>
+    <f30>
+      <fileName>29264/29264.nc</fileName>
+      <bsName>29264.bstats</bsName>
+      <outBeammapInfoName>29264.txt</outBeammapInfoName>
+      <outBeammapNcdfName>29264beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f30>
+    <f31>
+      <fileName>29571/29571.nc</fileName>
+      <bsName>29571.bstats</bsName>
+      <outBeammapInfoName>29571.txt</outBeammapInfoName>
+      <outBeammapNcdfName>29571beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f31>
+    <f32>
+      <fileName>29626/29626.nc</fileName>
+      <bsName>29626.bstats</bsName>
+      <outBeammapInfoName>29626.txt</outBeammapInfoName>
+      <outBeammapNcdfName>29626beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f32>
+    <f33>
+      <fileName>30142/30142.nc</fileName>
+      <bsName>30142.bstats</bsName>
+      <outBeammapInfoName>30142.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30142beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f33>
+    <f34>
+      <fileName>30196/30196.nc</fileName>
+      <bsName>30196.bstats</bsName>
+      <outBeammapInfoName>30196.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30196beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f34>
+    <f35>
+      <fileName>30310/30310.nc</fileName>
+      <bsName>30310.bstats</bsName>
+      <outBeammapInfoName>30310.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30310beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f35>
+    <f36>
+      <fileName>30382/30382.nc</fileName>
+      <bsName>30382.bstats</bsName>
+      <outBeammapInfoName>30382.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30382beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f36>
+    <f37>
+      <fileName>30455/30455.nc</fileName>
+      <bsName>30455.bstats</bsName>
+      <outBeammapInfoName>30455.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30455beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f37>
+    <f38>
+      <fileName>30526/30526.nc</fileName>
+      <bsName>30526.bstats</bsName>
+      <outBeammapInfoName>30526.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30526beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f38>
+    <f39>
+      <fileName>30601/30601.nc</fileName>
+      <bsName>30601.bstats</bsName>
+      <outBeammapInfoName>30601.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30601beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f39>
+    <f40>
+      <fileName>30712/30712.nc</fileName>
+      <bsName>30712.bstats</bsName>
+      <outBeammapInfoName>30712.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30712beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f40>
+    <f41>
+      <fileName>30713/30713.nc</fileName>
+      <bsName>30713.bstats</bsName>
+      <outBeammapInfoName>30713.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30713beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f41>
+    <f42>
+      <fileName>30800/30800.nc</fileName>
+      <bsName>30800.bstats</bsName>
+      <outBeammapInfoName>30800.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30800beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f42>
+    <f43>
+      <fileName>30903/30903.nc</fileName>
+      <bsName>30903.bstats</bsName>
+      <outBeammapInfoName>30903.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30903beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f43>
+    <f44>
+      <fileName>30947/30947.nc</fileName>
+      <bsName>30947.bstats</bsName>
+      <outBeammapInfoName>30947.txt</outBeammapInfoName>
+      <outBeammapNcdfName>30947beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f44>
+    <f45>
+      <fileName>31299/31299.nc</fileName>
+      <bsName>31299.bstats</bsName>
+      <outBeammapInfoName>31299.txt</outBeammapInfoName>
+      <outBeammapNcdfName>31299beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f45>
+    <f46>
+      <fileName>31444/31444.nc</fileName>
+      <bsName>31444.bstats</bsName>
+      <outBeammapInfoName>31444.txt</outBeammapInfoName>
+      <outBeammapNcdfName>31444beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f46>
+    <f47>
+      <fileName>31474/31474.nc</fileName>
+      <bsName>31474.bstats</bsName>
+      <outBeammapInfoName>31474.txt</outBeammapInfoName>
+      <outBeammapNcdfName>31474beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f47>
+    <f48>
+      <fileName>31579/31579.nc</fileName>
+      <bsName>31579.bstats</bsName>
+      <outBeammapInfoName>31579.txt</outBeammapInfoName>
+      <outBeammapNcdfName>31579beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f48>
+    <f49>
+      <fileName>31754/31754.nc</fileName>
+      <bsName>31754.bstats</bsName>
+      <outBeammapInfoName>31754.txt</outBeammapInfoName>
+      <outBeammapNcdfName>31754beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f49>
+    <f50>
+      <fileName>32133/32133.nc</fileName>
+      <bsName>32133.bstats</bsName>
+      <outBeammapInfoName>32133.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32133beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f50>
+    <f51>
+      <fileName>32205/32205.nc</fileName>
+      <bsName>32205.bstats</bsName>
+      <outBeammapInfoName>32205.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32205beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f51>
+    <f52>
+      <fileName>32235/32235.nc</fileName>
+      <bsName>32235.bstats</bsName>
+      <outBeammapInfoName>32235.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32235beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f52>
+    <f53>
+      <fileName>32339/32339.nc</fileName>
+      <bsName>32339.bstats</bsName>
+      <outBeammapInfoName>32339.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32339beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f53>
+    <f54>
+      <fileName>32510/32510.nc</fileName>
+      <bsName>32510.bstats</bsName>
+      <outBeammapInfoName>32510.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32510beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f54>
+    <f55>
+      <fileName>32629/32629.nc</fileName>
+      <bsName>32629.bstats</bsName>
+      <outBeammapInfoName>32629.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32629beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f55>
+    <f56>
+      <fileName>32653/32653.nc</fileName>
+      <bsName>32653.bstats</bsName>
+      <outBeammapInfoName>32653.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32653beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f56>
+    <f57>
+      <fileName>32721/32721.nc</fileName>
+      <bsName>32721.bstats</bsName>
+      <outBeammapInfoName>32721.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32721beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f57>
+    <f58>
+      <fileName>32774/32774.nc</fileName>
+      <bsName>32774.bstats</bsName>
+      <outBeammapInfoName>32774.txt</outBeammapInfoName>
+      <outBeammapNcdfName>32774beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f58>
+    <f59>
+      <fileName>33128/33128.nc</fileName>
+      <bsName>33128.bstats</bsName>
+      <outBeammapInfoName>33128.txt</outBeammapInfoName>
+      <outBeammapNcdfName>33128beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f59>
+    <f60>
+      <fileName>34409/34409.nc</fileName>
+      <bsName>34409.bstats</bsName>
+      <outBeammapInfoName>34409.txt</outBeammapInfoName>
+      <outBeammapNcdfName>34409beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f60>
+    <f61>
+      <fileName>34625/34625.nc</fileName>
+      <bsName>34625.bstats</bsName>
+      <outBeammapInfoName>34625.txt</outBeammapInfoName>
+      <outBeammapNcdfName>34625beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f61>
+    <f62>
+      <fileName>34657/34657.nc</fileName>
+      <bsName>34657.bstats</bsName>
+      <outBeammapInfoName>34657.txt</outBeammapInfoName>
+      <outBeammapNcdfName>34657beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f62>
+    <f63>
+      <fileName>34844/34844.nc</fileName>
+      <bsName>34844.bstats</bsName>
+      <outBeammapInfoName>34844.txt</outBeammapInfoName>
+      <outBeammapNcdfName>34844beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f63>
+    <f64>
+      <fileName>34967/34967.nc</fileName>
+      <bsName>34967.bstats</bsName>
+      <outBeammapInfoName>34967.txt</outBeammapInfoName>
+      <outBeammapNcdfName>34967beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f64>
+    <f65>
+      <fileName>35070/35070.nc</fileName>
+      <bsName>35070.bstats</bsName>
+      <outBeammapInfoName>35070.txt</outBeammapInfoName>
+      <outBeammapNcdfName>35070beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f65>
+    <f66>
+      <fileName>35169/35169.nc</fileName>
+      <bsName>35169.bstats</bsName>
+      <outBeammapInfoName>35169.txt</outBeammapInfoName>
+      <outBeammapNcdfName>35169beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f66>
+    <f67>
+      <fileName>35198/35198.nc</fileName>
+      <bsName>35198.bstats</bsName>
+      <outBeammapInfoName>35198.txt</outBeammapInfoName>
+      <outBeammapNcdfName>35198beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f67>
+    <f68>
+      <fileName>35272/35272.nc</fileName>
+      <bsName>35272.bstats</bsName>
+      <outBeammapInfoName>35272.txt</outBeammapInfoName>
+      <outBeammapNcdfName>35272beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f68>
+    <f69>
+      <fileName>35417/35417.nc</fileName>
+      <bsName>35417.bstats</bsName>
+      <outBeammapInfoName>35417.txt</outBeammapInfoName>
+      <outBeammapNcdfName>35417beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f69>
+    <f70>
+      <fileName>35525/35525.nc</fileName>
+      <bsName>35525.bstats</bsName>
+      <outBeammapInfoName>35525.txt</outBeammapInfoName>
+      <outBeammapNcdfName>35525beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f70>
+    <f71>
+      <fileName>37121/37121.nc</fileName>
+      <bsName>37121.bstats</bsName>
+      <outBeammapInfoName>37121.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37121beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f71>
+    <f72>
+      <fileName>37161/37161.nc</fileName>
+      <bsName>37161.bstats</bsName>
+      <outBeammapInfoName>37161.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37161beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f72>
+    <f73>
+      <fileName>37205/37205.nc</fileName>
+      <bsName>37205.bstats</bsName>
+      <outBeammapInfoName>37205.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37205beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f73>
+    <f74>
+      <fileName>37208/37208.nc</fileName>
+      <bsName>37208.bstats</bsName>
+      <outBeammapInfoName>37208.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37208beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f74>
+    <f75>
+      <fileName>37324/37324.nc</fileName>
+      <bsName>37324.bstats</bsName>
+      <outBeammapInfoName>37324.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37324beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f75>
+    <f76>
+      <fileName>37390/37390.nc</fileName>
+      <bsName>37390.bstats</bsName>
+      <outBeammapInfoName>37390.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37390beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f76>
+    <f77>
+      <fileName>37648/37648.nc</fileName>
+      <bsName>37648.bstats</bsName>
+      <outBeammapInfoName>37648.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37648beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f77>
+    <f78>
+      <fileName>37684/37684.nc</fileName>
+      <bsName>37684.bstats</bsName>
+      <outBeammapInfoName>37684.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37684beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f78>
+    <f79>
+      <fileName>37716/37716.nc</fileName>
+      <bsName>37716.bstats</bsName>
+      <outBeammapInfoName>37716.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37716beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f79>
+    <f80>
+      <fileName>37746/37746.nc</fileName>
+      <bsName>37746.bstats</bsName>
+      <outBeammapInfoName>37746.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37746beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f80>
+    <f81>
+      <fileName>37749/37749.nc</fileName>
+      <bsName>37749.bstats</bsName>
+      <outBeammapInfoName>37749.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37749beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f81>
+    <f82>
+      <fileName>37765/37765.nc</fileName>
+      <bsName>37765.bstats</bsName>
+      <outBeammapInfoName>37765.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37765beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f82>
+    <f83>
+      <fileName>37846/37846.nc</fileName>
+      <bsName>37846.bstats</bsName>
+      <outBeammapInfoName>37846.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37846beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f83>
+    <f84>
+      <fileName>37880/37880.nc</fileName>
+      <bsName>37880.bstats</bsName>
+      <outBeammapInfoName>37880.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37880beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f84>
+    <f85>
+      <fileName>37987/37987.nc</fileName>
+      <bsName>37987.bstats</bsName>
+      <outBeammapInfoName>37987.txt</outBeammapInfoName>
+      <outBeammapNcdfName>37987beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f85>
+    <f86>
+      <fileName>38021/38021.nc</fileName>
+      <bsName>38021.bstats</bsName>
+      <outBeammapInfoName>38021.txt</outBeammapInfoName>
+      <outBeammapNcdfName>38021beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f86>
+    <f87>
+      <fileName>38111/38111.nc</fileName>
+      <bsName>38111.bstats</bsName>
+      <outBeammapInfoName>38111.txt</outBeammapInfoName>
+      <outBeammapNcdfName>38111beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f87>
+    <f88>
+      <fileName>38138/38138.nc</fileName>
+      <bsName>38138.bstats</bsName>
+      <outBeammapInfoName>38138.txt</outBeammapInfoName>
+      <outBeammapNcdfName>38138beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f88>
+    <f89>
+      <fileName>38229/38229.nc</fileName>
+      <bsName>38229.bstats</bsName>
+      <outBeammapInfoName>38229.txt</outBeammapInfoName>
+      <outBeammapNcdfName>38229beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f89>
+    <f90>
+      <fileName>38391/38391.nc</fileName>
+      <bsName>38391.bstats</bsName>
+      <outBeammapInfoName>38391.txt</outBeammapInfoName>
+      <outBeammapNcdfName>38391beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f90>
+    <f91>
+      <fileName>39807/39807.nc</fileName>
+      <bsName>39807.bstats</bsName>
+      <outBeammapInfoName>39807.txt</outBeammapInfoName>
+      <outBeammapNcdfName>39807beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f91>
+    <f92>
+      <fileName>39817/39817.nc</fileName>
+      <bsName>39817.bstats</bsName>
+      <outBeammapInfoName>39817.txt</outBeammapInfoName>
+      <outBeammapNcdfName>39817beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f92>
+    <f93>
+      <fileName>39835/39835.nc</fileName>
+      <bsName>39835.bstats</bsName>
+      <outBeammapInfoName>39835.txt</outBeammapInfoName>
+      <outBeammapNcdfName>39835beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f93>
+    <f94>
+      <fileName>39994/39994.nc</fileName>
+      <bsName>39994.bstats</bsName>
+      <outBeammapInfoName>39994.txt</outBeammapInfoName>
+      <outBeammapNcdfName>39994beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f94>
+    <f95>
+      <fileName>40120/40120.nc</fileName>
+      <bsName>40120.bstats</bsName>
+      <outBeammapInfoName>40120.txt</outBeammapInfoName>
+      <outBeammapNcdfName>40120beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f95>
+    <f96>
+      <fileName>40361/40361.nc</fileName>
+      <bsName>40361.bstats</bsName>
+      <outBeammapInfoName>40361.txt</outBeammapInfoName>
+      <outBeammapNcdfName>40361beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f96>
+    <f97>
+      <fileName>40419/40419.nc</fileName>
+      <bsName>40419.bstats</bsName>
+      <outBeammapInfoName>40419.txt</outBeammapInfoName>
+      <outBeammapNcdfName>40419beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f97>
+    <f98>
+      <fileName>40469/40469.nc</fileName>
+      <bsName>40469.bstats</bsName>
+      <outBeammapInfoName>40469.txt</outBeammapInfoName>
+      <outBeammapNcdfName>40469beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f98>
+    <f99>
+      <fileName>40525/40525.nc</fileName>
+      <bsName>40525.bstats</bsName>
+      <outBeammapInfoName>40525.txt</outBeammapInfoName>
+      <outBeammapNcdfName>40525beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f99>
+    <f100>
+      <fileName>40572/40572.nc</fileName>
+      <bsName>40572.bstats</bsName>
+      <outBeammapInfoName>40572.txt</outBeammapInfoName>
+      <outBeammapNcdfName>40572beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f100>
+    <f101>
+      <fileName>43868/43868.nc</fileName>
+      <bsName>43868.bstats</bsName>
+      <outBeammapInfoName>43868.txt</outBeammapInfoName>
+      <outBeammapNcdfName>43868beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f101>
+    <f102>
+      <fileName>44037/44037.nc</fileName>
+      <bsName>44037.bstats</bsName>
+      <outBeammapInfoName>44037.txt</outBeammapInfoName>
+      <outBeammapNcdfName>44037beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f102>
+    <f103>
+      <fileName>44049/44049.nc</fileName>
+      <bsName>44049.bstats</bsName>
+      <outBeammapInfoName>44049.txt</outBeammapInfoName>
+      <outBeammapNcdfName>44049beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f103>
+    <f104>
+      <fileName>44112/44112.nc</fileName>
+      <bsName>44112.bstats</bsName>
+      <outBeammapInfoName>44112.txt</outBeammapInfoName>
+      <outBeammapNcdfName>44112beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f104>
+    <f105>
+      <fileName>45822/45822.nc</fileName>
+      <bsName>45822.bstats</bsName>
+      <outBeammapInfoName>45822.txt</outBeammapInfoName>
+      <outBeammapNcdfName>45822beam.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f105>
+</observations>
+</analysis>
+

@@ -1,0 +1,61 @@
+<analysis>
+  <!-- you start with analysis parameters and switches -->
+  <parameters>
+    <despikeSigma> 10.0000 </despikeSigma>
+    <lowpassFilterKnee> 12.0000 </lowpassFilterKnee>
+    <timeOffset> 0.00000 </timeOffset>
+    <timeChunk> 10.0000 </timeChunk>
+    <cutStd> 0.00000 </cutStd>
+    <neigToCut> 0</neigToCut>
+    <splineOrder> 4 </splineOrder>
+    <cleanPixelSize> 20.0 </cleanPixelSize>
+    <cleanStripe> 0.0 </cleanStripe>
+    <controlChunk> 0.2000 </controlChunk>
+    <resample> 0.0 </resample>
+    <approximateWeights> 1 </approximateWeights>
+    <masterGridJ2000_0> 0.00000 </masterGridJ2000_0>
+    <masterGridJ2000_1> 0.00000 </masterGridJ2000_1>
+    <pixelSize> 3.00000 </pixelSize>
+  </parameters>
+  
+  <simulate>
+  <!-- simulation (insert) map mode parameters and switches -->
+    <addSignal>0</addSignal>       <!-- 1 add signal to current streams, 0 simulated signal only-->
+    <fluxFactor>1.0</fluxFactor>
+    <atmFreq>12</atmFreq>
+	<noiseChunk> 1 </noiseChunk>
+	<simPath>/home/domars/tesis/aztec_c++/sample_files/aste/sim_maps/</simPath>
+    <simFile>sim_beta.nc</simFile>
+  </simulate>
+  
+
+  <!-- coaddition path and files -->
+  <coaddition>
+    <mapPath>/home/domars/tesis/aztec_c++/sample_files/aste/reduced_maps/</mapPath>
+    <mapFile>simualted_betaonly_spline.nc</mapFile>
+  </coaddition>
+
+  <!-- noise realization path and files -->
+  <noiseRealization>
+    <nRealizations>100</nRealizations>
+    <noisePath>/home/domars/tesis/aztec_c++/sample_files/aste/noise_maps/</noisePath>
+    <avgNoisePsdFile>average_noise_psd.nc</avgNoisePsdFile>
+    <avgNoiseHistFile>average_noise_histogram.nc</avgNoiseHistFile>
+  </noiseRealization>
+
+  <!-- observation filelist -->
+  <observations>
+    <rawDataPath>/home/domars/tesis/aztec_c++/sample_files/aste/raw_data/</rawDataPath>
+    <bsPath>/home/domars/tesis/aztec_c++/sample_files/aste/raw_data/</bsPath>
+    <mapPath>/home/domars/tesis/aztec_c++/sample_files/aste/reduced_maps/</mapPath>
+    <nFiles> 1</nFiles>
+    <f0>
+      <fileName>sample_aste.nc</fileName>
+      <bsName>sample_aste.bstats</bsName>
+      <mapName>sample_aste_map_rv.nc</mapName>
+      <bsOffset_0> 0.0 </bsOffset_0>
+      <bsOffset_1> 0.0 </bsOffset_1>
+    </f0>
+  </observations>
+</analysis>
+
