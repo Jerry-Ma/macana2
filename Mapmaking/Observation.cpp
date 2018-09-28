@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <time.h>
 #include <fftw3.h>
+#include <CCfits/CCfits>
 using namespace std;
 
 #include "nr3.h"
@@ -376,6 +377,78 @@ MatDoub Observation::calculateWeights(Array* a, Telescope* tel)
 }
 
 
+bool Observation::writeBeammapsToFits(string ncdfFilename)
+{
+
+    // Create a FITS primary array containing a 2-D image               
+    // declare axis arrays.    
+    long naxis    =   2;      
+    long naxes[2] = { ncols, nrows };   
+    vector<long> naxes_(naxes, end(naxes));
+    
+    // declare auto-pointer to FITS at function scope. Ensures no resources
+    // leaked if something fails in dynamic allocation.
+    auto_ptr<CCfits::FITS> pFits(0);
+      
+    try
+    {                
+        // overwrite existing file if the file already exists.
+            
+        const string fileName(ncdfFilename);            
+        
+        // Create a new FITS object, specifying the data type and axes for the primary
+        // image. Simultaneously create the corresponding file.
+        
+        // this image is unsigned short data, demonstrating the cfitsio extension
+        // to the FITS standard.
+        
+        pFits.reset( new CCfits::FITS(fileName, CCfits::Write) );
+    }
+    catch (CCfits::FITS::CantCreate)
+    {
+          // ... or not, as the case may be.
+          cerr << "Failed to open " << ncdfFilename << "... aborting" << endl;
+          exit(1);
+
+    }
+    
+    // references for clarity.
+    
+    long nelements(1); 
+    
+    
+    // Find the total size of the array. 
+    // this is a little fancier than necessary ( It's only
+    // calculating naxes[0]*naxes[1]) but it demonstrates  use of the 
+    // C++ standard library accumulate algorithm.
+    
+    nelements = accumulate(&naxes[0],&naxes[naxis],1,std::multiplies<long>());
+
+    std::valarray<double> arr(nelements);
+
+  string obeamsignal;
+  size_t nDetectors = array->getNDetectors();
+  for (int n=0; n < nDetectors; n++) {
+    cerr << "writing signal for map " << n << endl;
+    obeamsignal.assign("beammapSignal");
+    stringstream o;
+    o << n+1;
+    obeamsignal.append(o.str());
+    CCfits::ExtHDU* imageExt = pFits->addImage(obeamsignal, DOUBLE_IMG, naxes_);
+
+    for(int i=0;i<ncols;i++)
+      for(int j=0;j<nrows;j++)
+        arr[nrows*i+j] = beammapSignal[n][nrows*i + j];
+    //
+    // I have no idea what this is for
+    long fpixel(1);
+    //this is what we eventually want
+    imageExt->write(fpixel,nelements,arr);
+
+  }
+    return 0;
+}
+
 //----------------------------- o ---------------------------------------
 //writes the entire set of beammaps to a netcdf file
 bool Observation::writeBeammapsToNcdf(string ncdfFilename)
@@ -423,7 +496,7 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
     o << i;
     obeamsignal.append(o.str());
     nVar = ncfid.add_var(obeamsignal.c_str(), ncDouble, rowDim, colDim);
-    nVar->put(&beammapSignal[i][0], nrows, ncols);
+    /* nVar->put(&beammapSignal[i][0], nrows, ncols); */
   }
 
   string obeamweight;
@@ -434,7 +507,7 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
     o << i+1;
     obeamweight.append(o.str());
     nVar = ncfid.add_var(obeamweight.c_str(), ncDouble, rowDim, colDim);
-    nVar->put(&beammapWeight[i][0], nrows, ncols);
+    /* nVar->put(&beammapWeight[i][0], nrows, ncols); */
   }
 
   time_t rawtime;

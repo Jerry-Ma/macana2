@@ -243,7 +243,8 @@ int main(int nArgs, char* args[])
           string mapFile = ap->getOutBeammapNcdf();
           
           cerr << "writing maps to " << mapFile << endl;
-          obs->writeBeammapsToNcdf(mapFile);
+          /* obs->writeBeammapsToNcdf(mapFile); */
+          obs->writeBeammapsToFits(mapFile);
           
           cerr << "writing fit parameters to " << mapFile << endl;
           obs->writeFitParamsToNcdf(mapFile, fitParams);

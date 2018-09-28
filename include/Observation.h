@@ -68,6 +68,7 @@ class Observation
   bool mapGenerationPrep(Array* a);
   bool signalMapPsd();
   bool signalMapPsd(double cc);
+  bool writeBeammapsToFits(string filename);
   bool writeBeammapsToNcdf(string filename);
   bool writeBeammapsToBmp(string bmpFilename, int nDetectors);
   bool writeFitParamsToNcdf(string ncdfFilename, MatDoub &fitParams);

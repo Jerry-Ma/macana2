@@ -50,7 +50,7 @@ find_library(CFITSIO_LIBRARY  cfitsio
 find_package_handle_standard_args(CFITSIO  DEFAULT_MSG  
   CFITSIO_INCLUDE_DIR CFITSIO_LIBRARY)
 if(NOT CFITSIO_FOUND) 
-  message("Can't find CCfits. You can specify a non-standard (e.g., from source) installation using CFITSIO_ROOT_DIR")
+  message("Can't find cfitsio. You can specify a non-standard (e.g., from source) installation using CFITSIO_ROOT_DIR")
 endif(NOT CFITSIO_FOUND) 
 
 
