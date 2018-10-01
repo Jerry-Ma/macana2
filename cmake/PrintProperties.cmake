@@ -32,7 +32,6 @@ function(print_target_properties tgt)
       message("There is no target named '${tgt}'")
       return()
     endif()
-
     get_target_property(target_type ${tgt} TYPE)
     if(target_type STREQUAL "INTERFACE_LIBRARY")
         set(PROP_LIST ${CMAKE_WHITELISTED_PROPERTY_LIST})

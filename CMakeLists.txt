@@ -1,69 +1,122 @@
-## cmake config
 cmake_minimum_required(VERSION 3.12)
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "Do not build in-source. Please remove CMakeCache.txt and the CMakeFiles/ directory. Then build out-of-source.")
 endif()
+if (NOT APPLE)
+    set(CMAKE_LINK_WHAT_YOU_USE TRUE)  # lwyu does not work with macos linker
+endif()
+set(CMAKE_CXX_STANDARD 11) # c++11
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)  # without compiler extensions like gnu++11
+if (NOT CMAKE_BUILD_TYPE)
+  message(STATUS "No build type selected, default to RelWithDebInfo")
+  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
+
 # set(CMAKE_MACOSX_RPATH 1)
-set(cmake_modules ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-LIST(APPEND CMAKE_MODULE_PATH "${cmake_modules}")
-include(${cmake_modules}/print_properties.cmake)
+# set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-## source files
 project(macana2)
-# set(src ${CMAKE_CURRENT_SOURCE_DIR}/src)
-file(GLOB srcs Analysis/*.cpp Clean/*.cpp Mapmaking/*.cpp Observatory/*.cpp Simulate/*.cpp Sky/*.cpp Sky/Novas/*.c Utilities/*.cpp)
-# list(REMOVE_ITEM srcs "Utilities/fitswriter.cpp")
-set(include ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-## cmake magics to resolve deps
-# automatic git version
-find_package(Git)
+# load some cmake modules print out some useful info
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(cmake/PrintProperties.cmake)  # helper to print target attrs
+find_package(Git)  # automatic git version
 set(VERSION_UPDATE_FROM_GIT 1)
-include(${cmake_modules}/cmake-git-semver/GetVersionFromGitTag.cmake)
+include(GetVersionFromGitTag)
+set(_build_version ${${CMAKE_PROJECT_NAME}_VERSION_STRING_FULL})
+string(TIMESTAMP _time_stamp)
 message("==================================================")
 message("PROJECT NAME: " ${CMAKE_PROJECT_NAME})
-message("VERSION     : " ${${CMAKE_PROJECT_NAME}_VERSION_STRING_FULL})
+message("VERSION     : " ${_build_version})
+message("TIME        : " ${_time_stamp})
 message("==================================================")
-# TODO openmp
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitversion.h.in
+    ${CMAKE_BINARY_DIR}/gitversion.h
+    @ONLY
+)
+message("Update gitversion.h")
+
+# dependencies
+# TODO: better handle varieties of openmp on macos
 find_package(OpenMP REQUIRED)
-# set(OpenMP_C "${CMAKE_C_COMPILER}")
-# set(OpenMP_C_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
-# set(OpenMP_C_LIB_NAMES "libomp" "libgomp" "libiomp5")
-# set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-# set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
-# set(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
-# set(OpenMP_libomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-# set(OpenMP_libgomp_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-# set(OpenMP_libiomp5_LIBRARY ${OpenMP_CXX_LIB_NAMES})
-# set(OPENMP_LIBRARIES "/usr/local/opt/llvm/lib")
-# set(OPENMP_INCLUDES "/usr/local/opt/llvm/include")
-# include_directories("${OPENMP_INCLUDES}")
-# link_directories("${OPENMP_LIBRARIES}")
-# set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-# set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-# set(OPENMP_FOUND TRUE)
-
 find_package(GSL REQUIRED)
-print_target_properties(GSL::gsl)
-print_target_properties(GSL::gslcblas)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
-print_target_properties(fftw3::double::serial)
-
 # TODO: wrap these in imported targets
 find_package(NetCDF REQUIRED COMPONENTS CXX)
 find_package(CCFits REQUIRED)  # this one also find cfitsio
 find_package(CXSparse REQUIRED)
 
-# build executables
-include_directories(${include})
-include_directories(Sky/Novas)
+print_target_properties(GSL::gsl)
+print_target_properties(GSL::gslcblas)
+print_target_properties(fftw3::double::serial)
 
-set(execs macanap beammap fitswriter)
-foreach(exec ${execs})
-    add_executable(${exec} ${exec}.cpp ${srcs})
-    target_compile_options (${exec} PRIVATE -c -g -Wall -DHAVE_INLINE -O2 -fexceptions)
-    target_link_libraries(${exec} OpenMP::OpenMP_CXX GSL::gsl GSL::gslcblas fftw3::double::serial ${NETCDF_CXX_LIBRARIES} ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY} ${CXSPARSE_LIBRARIES})
-endforeach(exec ${execs})
+# build executables
+set(compile_options -Wall -Wextra -DHAVE_INLINE -fexceptions)  # -Werror
+include_directories(${CMAKE_BINARY_DIR})  # version header
+
+# source files
+set(exec_list macanap beammap fitswriter)
+set(
+    macanap_sources
+    Analysis/AnalParams.cpp Analysis/SimParams.cpp
+
+    )
+file(GLOB macanap_srcs Analysis/*.cpp Clean/*.cpp Mapmaking/*.cpp Observatory/*.cpp Simulate/*.cpp Sky/*.cpp Sky/Novas/*.c Utilities/*.cpp)
+set(macanap_incs ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas)
+set(
+    macanap_libs
+    OpenMP::OpenMP_CXX
+    GSL::gsl GSL::gslcblas
+    fftw3::double::serial
+    ${CXSPARSE_LIBRARIES}
+    ${NETCDF_CXX_LIBRARIES}
+    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+    )
+
+file(GLOB beammap_srcs Analysis/*.cpp Clean/*.cpp Mapmaking/*.cpp Observatory/*.cpp Simulate/*.cpp Sky/*.cpp Sky/Novas/*.c Utilities/*.cpp)
+set(beammap_incs ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas)
+set(
+    beammap_libs
+    OpenMP::OpenMP_CXX
+    GSL::gsl GSL::gslcblas
+    fftw3::double::serial
+    ${CXSPARSE_LIBRARIES}
+    ${NETCDF_CXX_LIBRARIES}
+    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+    )
+
+set(fitswriter_srcs) # dummy
+set(fitswriter_incs ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(
+    fitswriter_libs
+    ${NETCDF_CXX_LIBRARIES}
+    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+    )
+
+foreach(exec ${exec_list})
+    add_executable(${exec})
+    target_compile_options(
+    ${exec} PRIVATE
+    ${compile_options})
+    target_sources(
+        ${exec} PRIVATE
+        ${exec}.cpp
+        ${${exec}_srcs}
+        )
+    target_include_directories(
+        ${exec} PRIVATE
+        ${${exec}_incs}
+        )
+    target_link_libraries(
+        ${exec}
+        PRIVATE
+        ${${exec}_libs}
+        )
+endforeach(exec ${exec_list})
 
 ## docs
 # https://vicrucann.github.io/tutorials/quick-cmake-doxygen/
