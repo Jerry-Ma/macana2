@@ -186,7 +186,7 @@ extern int mpfit(mp_func funct, int m, int npar,
 
 /* Default is to assume that compiler/library has finite() function */
 #else
-#define mpfinite(x) finite(x)
+#define mpfinite(x) isfinite(x)
 
 #endif
 

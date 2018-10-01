@@ -16,7 +16,7 @@ using namespace std;
 #include "astron_utilities.h"
 #include "nr3.h"
 #include "Array.h"
-#include "Detector.h"
+
 #include "Map.h"
 #include "Observation.h"
 #include "Coaddition.h"
@@ -39,7 +39,8 @@ using namespace std;
 int main(int nArgs, char* args[])
 {
   //selects the ap.xml file and stores in apXml
-  if(nArgs > 2){
+  if(nArgs > 2)
+  {
     cerr << "Beammap: " << endl;
     cerr << "  calling syntax ./beammap [analysis.xml] " << endl;
     cerr << " if no xml file is given on input, apbDefault.xml ";

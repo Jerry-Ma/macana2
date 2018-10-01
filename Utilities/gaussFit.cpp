@@ -78,6 +78,8 @@ struct vars_struct {
 int myfunct_gauss(int m, int n, double *p, double *deviates,
                  double **derivs, void *vars)
 {
+  (void) n;
+  (void) derivs;
   struct vars_struct *v = (struct vars_struct *) vars;
   double *az = v->az;
   double *el = v->el;

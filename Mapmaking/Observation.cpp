@@ -428,7 +428,7 @@ bool Observation::writeBeammapsToFits(string ncdfFilename)
 
   string obeamsignal;
   size_t nDetectors = array->getNDetectors();
-  for (int n=0; n < nDetectors; n++) {
+  for (size_t n=0; n < nDetectors; n++) {
     cerr << "writing signal for map " << n << endl;
     obeamsignal.assign("beammapSignal");
     stringstream o;
@@ -471,16 +471,16 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
   NcVar *yCAbsVar = ncfid.add_var("yCoordsAbs", ncDouble, rowDim, colDim);
 
   size_t nDetectors = array->getNDetectors();
-  size_t nSamples = array->getNSamples();
-  size_t nvars = 5;
-  NcDim* dimDetectors = ncfid.add_dim("nDetectors", nDetectors);
-  NcDim* dimSamples = ncfid.add_dim ("nSamples", nSamples);
-  NcDim* dimType = ncfid.add_dim ("types", nvars);
-  NcVar* bArray =ncfid.add_var("boloData", ncDouble, dimType, dimDetectors, dimSamples);
-  size_t nScans = tel->scanIndex.ncols();
-  NcDim* dimScans =ncfid.add_dim("nScans", nScans);
-  NcDim* dimScansLimit = ncfid.add_dim("scanLimit", 2);
-  NcVar* scansVar = ncfid.add_var("scanIndex",ncInt,dimScansLimit,dimScans);
+  // size_t nSamples = array->getNSamples();
+  //size_t nvars = 5;
+  //NcDim* dimDetectors = ncfid.add_dim("nDetectors", nDetectors);
+  //NcDim* dimSamples = ncfid.add_dim ("nSamples", nSamples);
+  //NcDim* dimType = ncfid.add_dim ("types", nvars);
+  //NcVar* bArray =ncfid.add_var("boloData", ncDouble, dimType, dimDetectors, dimSamples);
+  // size_t nScans = tel->scanIndex.ncols();
+  //NcDim* dimScans =ncfid.add_dim("nScans", nScans);
+  //NcDim* dimScansLimit = ncfid.add_dim("scanLimit", 2);
+  //NcVar* scansVar = ncfid.add_var("scanIndex",ncInt,dimScansLimit,dimScans);
 
   rCPhysVar->put(&rowCoordsPhys[0], nrows);
   cCPhysVar->put(&colCoordsPhys[0], ncols);
@@ -489,7 +489,7 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
 
   string obeamsignal;
   NcVar* nVar;
-  for(int i=0;i<nDetectors;i++){
+  for(size_t i=0;i<nDetectors;i++){
     cerr << "writing signal for map " << i << endl;
     obeamsignal.assign("beammapSignal");
     stringstream o;
@@ -500,7 +500,7 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
   }
 
   string obeamweight;
-  for(int i=0;i<nDetectors;i++){
+  for(size_t i=0;i<nDetectors;i++){
     cerr << "writing weight for map " << i << endl;
     obeamweight.assign("beammapWeight");
     stringstream o;
@@ -600,6 +600,7 @@ bool Observation::writeFitParamsToNcdf(string mapFile, MatDoub &fitParams)
     sigVar->add_att("pos_Angle_units", "radians");
   }
   ncfid.close();
+  return true;
 }
 
 
@@ -812,10 +813,11 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
 //----------------------------- o ---------------------------------------
 
 
+// TODO to be implemented
 bool Observation::writeObservationToFits(string fitsFilename)
 {
 
-
+    (void) fitsFilename;
 	return 1;
 }
 

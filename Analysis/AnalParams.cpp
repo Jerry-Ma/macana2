@@ -611,6 +611,7 @@ Requires additional BeammapSourceFlux and output paths for beammapping
 
 AnalParams::AnalParams(string apXmlFile, int beammap)
 {
+  (void) beammap;  // TODO get rid of this by doing delelated constructor
   beammapping = 1;
   macanaRandom = new GslRandom();
 

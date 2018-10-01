@@ -7,7 +7,10 @@ using namespace std;
 
 CS_INT cs_nonfinite (CS_INT i, CS_INT j, CS_ENTRY aij, void *other)
 {
-	CS_INT res = finite(aij);
+    (void) i;
+    (void) j;
+    (void) other;
+    CS_INT res = isfinite(aij);
 	if (!res){
 		cerr<<"Detected a NaN value  on sparse matrix"<<endl;
 		exit(-1);
@@ -48,7 +51,7 @@ cs *sparse_invert (cs* matrix, double tol)
 
 
     for (long j=0; j<size; j++){
-      if (!finite(unitVector[j])){
+      if (!isfinite(unitVector[j])){
     	  return NULL;
       }
       if (abs(unitVector[j])>tol)

@@ -114,7 +114,7 @@ bool BinomialStats::calcIntervals()
 
   //array of gridded underlying probabilities of TRUE
   //must purposely ignore p=1, b/c that gives no options
-  long np = (n/10.0 > long(5000)) ? long(np/10.0) : 5000;
+  long np = (n/10.0 > long(5000)) ? long(n/10.0) : 5000;
   vector<double> p(np);
   for(int i=0;i<np;i++){
     p[i] = (double(i)/np)*(highpt - lowpt) + lowpt;

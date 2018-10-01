@@ -495,7 +495,7 @@ bool Coaddition::writeCoadditionToNcdf()
 bool Coaddition::writeCoadditionToFits(string fitsFilename)
 {
 
-
+  (void) fitsFilename;
   return 1;
 }
 
@@ -622,6 +622,7 @@ bool Coaddition::writeFilteredMapsToNcdf()
 bool Coaddition::findSources(double* signalMap, double* s2nMap,
 			     Coaddition* realCoadd, double maxS2N)
 {
+  (void) s2nMap;
   //needs to go when Wiener filter is done
   maxPreS2N = maxS2N;
 

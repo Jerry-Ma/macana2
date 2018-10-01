@@ -270,7 +270,7 @@ VecDoub MapNcFile::fastMapSignal (VecDoub rapoint, VecDoub decpoint){
 				}else{
 					inty =inty / (decCoords[yposb1]-decCoords[yposb]) + intx;
 				}
-				if (!finite (inty)){
+                if (!isfinite (inty)){
 					cerr<<" Not a valid floating point detected: "<<endl;
 					cerr << "intx: "<< intx<< endl;
 					cerr << "intx1: "<< intx1<< endl;

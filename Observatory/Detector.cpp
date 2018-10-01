@@ -531,6 +531,9 @@ bool Detector::despike(int nSigmaSpikes, int gpuId)
   //use of other detectors.  
   //1) find the spikes
   //2) flag the timestream values around the spikes
+  // TODO
+  (void) nSigmaSpikes;
+  (void) gpuId;
   
   isDespiked=1;
   return 1;
@@ -593,7 +596,8 @@ bool Detector::lowpass(double* digFiltTerms, int nTerms)
 bool Detector::lowpass(int gpuId)
 {
   //this is a digital FIR filter
-  
+  // TODO
+  (void) gpuId;
   isLowpassed=1;
   return 1;
 }
@@ -612,6 +616,9 @@ bool Detector::downsample(double desiredSamplerate)
   //the desired samplerate may not be practical so use
   //the nearest best value
   //samplerate = best value;
+
+  // TODO
+  (void) desiredSamplerate;
   
   isDownsampled=1;
   return 1;

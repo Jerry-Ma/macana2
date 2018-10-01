@@ -1,5 +1,3 @@
-using namespace std;
-
 #include "Clean.h"
 
 
@@ -12,4 +10,3 @@ Clean::Clean(Array *dataArray, Telescope *telescope){
     this->ap=dataArray->getAp();
   }
 }
-

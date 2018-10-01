@@ -90,7 +90,7 @@ bool SimulatorInserter::insertIntoArray(Array *arr){
 	    interp.resize(np);
 	    interp = this->map->fastMapSignal(arr->detectors[di[i]].hRa, arr->detectors[di[i]].hDec);
 	    for (size_t is = 0; is < np; is++)
-	      if (!finite(interp[is])){
+          if (!isfinite(interp[is])){
 		char buff [200];
 		sprintf(buff, "Interp_%ul.txt", (unsigned int)i);
 		writeVecOut(buff, atmTemplate.getData(), atmTemplate.size());
@@ -105,7 +105,7 @@ bool SimulatorInserter::insertIntoArray(Array *arr){
 	      }else if (!sameAtm){
 		atmTemplate = bspline->fitData(arr->detectors[di[i]].hValues);
 		for (size_t is = 0; is < np; is++)
-		  if (!finite(atmTemplate[is])){
+          if (!isfinite(atmTemplate[is])){
 		    char buff [200];
 		    sprintf(buff, "atmTemp_%ul.txt", (unsigned int)i);
 		    writeVecOut(buff, atmTemplate.getData(), atmTemplate.size());

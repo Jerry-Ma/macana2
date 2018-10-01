@@ -1211,6 +1211,8 @@ double findWeightThreshold(MatDoub &myweight, double cov)
 
 
 int linearDeviates (int m, int n,  double *p, double *deviates, double **derivs, void * private_data){
+    (void) n;
+    (void) derivs;
 	mpfit_basic_data *data = (mpfit_basic_data *) private_data;
 	for (int i =0; i< m; i++)
 		deviates[i] = abs((data->y[i]-p[0])/p[1]- data->x[i]);

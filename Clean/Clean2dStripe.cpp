@@ -328,6 +328,7 @@ void Spline2d::createBaseMatrix(gsl_bspline_workspace *bsw,double *time,cs **bMa
 
 void Spline2d::create1DCoeffs(double *data, size_t nData, cs *bMatrix, cs *btbMatrix, size_t nSpline, double *coeffOut){
 
+    (void) nData;
 	for (size_t j=0; j<nSpline; j++)
 			coeffOut[j]=0.0;
 

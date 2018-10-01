@@ -466,7 +466,7 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 		exit(-1);
 	}
 	for (register size_t itsi = 0; itsi<nSp; itsi++){
-		if (!finite(v2[itsi]) || !finite(tsi[itsi])){
+        if (!isfinite(v2[itsi]) || !isfinite(tsi[itsi])){
 			cerr<<"Nan detected on tsi vector"<<endl;
 			exit(-1);
 		}
@@ -509,7 +509,7 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 	//Check for NaN and finite
 	for (size_t i=0; i<nDetectors;i++)
 		for(size_t j=0; j<nSamples; j++)
-			if (!finite(v1[i*nSamples+j])){
+            if (!isfinite(v1[i*nSamples+j])){
 				delete [] v1;
 				return NULL;
 			}
@@ -786,7 +786,7 @@ void CleanBspline::createBaseMatrix(int nSamples, int nDetectors){
 		kend = -1;
 		for (int k=0; k<nSpline; k++){
 			c_sample = gsl_vector_get(tmpB, k);
-			if (!finite(c_sample)){
+            if (!isfinite(c_sample)){
 				cerr<<"Nan detected on BaseMatrix....Imploding"<<endl;
 				exit(-1);
 			}
@@ -1289,7 +1289,8 @@ bool CleanBspline::fixFlags(double *dataVector, bool *flagsVector, int nDetector
 	//  double data2=0.0;
 	//  double value = 0.0;
 	//  long fpos=0.0;
-	double sum = 0.0;
+    (void) dataVector;
+    double sum = 0.0;
 	VecDoub sumPerDetector(nDetectors,0.0);
 	//Check flag vector, if more than 50% of the data is flagged as invalid then dismiss the whole scan
 	for (int i=0; i<nDetectors; i++)
@@ -1494,6 +1495,7 @@ void CleanBspline::subtractTemplate(double* detector, size_t nSamples,	double* a
 
 
 void CleanBspline::cleanStripeFFT2(double *data, double *kernel, int nDetectors, long nSamples, double cutOff, double cutLow, double sampleRate){
+    (void) cutLow;
 	double  *tmp = new double [nSamples];
 	double  *ktmp = new double [nSamples];
 	double  *freq = new double [nSamples];
