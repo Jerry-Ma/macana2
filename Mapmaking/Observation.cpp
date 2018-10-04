@@ -388,7 +388,7 @@ bool Observation::writeBeammapsToFits(string ncdfFilename)
     
     // declare auto-pointer to FITS at function scope. Ensures no resources
     // leaked if something fails in dynamic allocation.
-    auto_ptr<CCfits::FITS> pFits(0);
+    unique_ptr<CCfits::FITS> pFits;
       
     try
     {                

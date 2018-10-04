@@ -20,13 +20,14 @@ bool writeFits(string fitsFile, MatDoub &arr, double xpixsz, double ypixsz,
   //declare axis arrays
   int nrows = arr.nrows();
   int ncols = arr.ncols();
-  long naxis = 2;
+  int naxis = 2;
   long naxes[2] = {nrows, ncols};
   long nelements = naxes[0]*naxes[1];
 
   // declare auto-pointer to FITS at function scope. Ensures no resources
   // leaked if something fails in dynamic allocation.
-  auto_ptr<CCfits::FITS> pFits(0);
+  // auto pFits = make_unique<CCfits::FITS> (nullptr);
+  unique_ptr<CCfits::FITS> pFits;
   
   //open the fits file and overwrite it if it already exists
   try
@@ -44,10 +45,10 @@ bool writeFits(string fitsFile, MatDoub &arr, double xpixsz, double ypixsz,
 
   // the array to be written into the fits file
   // we'll take the transpose and reverse the ra axis too
-  std::valarray<double> array(nelements);
+  std::valarray<double> array(static_cast<size_t>(nelements));
   for(int i=0;i<ncols;i++)
     for(int j=0;j<nrows;j++)
-      array[nrows*i+j] = arr[nrows-1-j][i];
+      array[static_cast<size_t>(nrows*i+j)] = arr[nrows-1-j][i];
 
   // don't forget to adjust the pixel location of the coord ref.
   // The extra +1 here is to account for the 1-based coordinate system of fits files

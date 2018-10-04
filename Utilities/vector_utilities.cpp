@@ -354,7 +354,7 @@ double median (double *data, size_t nSamp){
 	double *tmpData = new double[nSamp];
 	double median = 0.0;
 
-	for (register size_t i=0; i<nSamp; i++){
+    for (size_t i=0; i<nSamp; i++){
 		tmpData[i]=data[i];
 	}
 	gsl_sort(tmpData,1,nSamp);
@@ -367,13 +367,13 @@ double median (double *data, bool *flags, size_t nSamp){
 
 	size_t ngood = 0;
 
-	for (register size_t i=0; i<nSamp; i++)
+    for (size_t i=0; i<nSamp; i++)
 		if (flags[i])
 			ngood++;
 	double *tmpData = new double[ngood];
 	double median = 0.0;
 	size_t ix=0;
-	for (register size_t i=0; i<nSamp; i++){
+    for (size_t i=0; i<nSamp; i++){
 		if (flags[i])
 			tmpData[ix++]=data[i];
 	}
@@ -391,7 +391,7 @@ double percentile (double *data, size_t nSamp, double percentile){
 	double *tmpData = new double[nSamp];
 	double p = 0.0;
 
-	for (register size_t i=0; i<nSamp; i++){
+    for (size_t i=0; i<nSamp; i++){
 		tmpData[i]=data[i];
 	}
 	gsl_sort(tmpData,1,nSamp);

@@ -4,10 +4,9 @@
 #include <fstream>
 #include <string>
 #include <gsl/gsl_matrix.h>
-#include <omp.h>
 #include <ctime>
 #include <exception>
-
+#include <omp.h>
 using namespace std;
 
 #include "nr3.h"

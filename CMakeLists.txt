@@ -5,7 +5,7 @@ endif()
 if (NOT APPLE)
     set(CMAKE_LINK_WHAT_YOU_USE TRUE)  # lwyu does not work with macos linker
 endif()
-set(CMAKE_CXX_STANDARD 11) # c++11
+set(CMAKE_CXX_STANDARD 17) # c++17
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)  # without compiler extensions like gnu++11
 if (NOT CMAKE_BUILD_TYPE)
@@ -58,11 +58,9 @@ print_target_properties(fftw3::double::serial)
 set(compile_options -Wall -Wextra -Wno-deprecated-register -DHAVE_INLINE -fexceptions)  # -Werror
 include_directories(${CMAKE_BINARY_DIR})  # version header
 
-# source files
-set(exec_list macanap beammap fitswriter)
-set(
-    macanap_srcs
-    macanap.cpp
+# manana core
+add_library(
+    macana-core OBJECT
     Analysis/AnalParams.cpp
     Analysis/SimParams.cpp
     Clean/AzElTemplateCalculator.cpp
@@ -104,97 +102,52 @@ set(
     Sky/Novas/readeph0.c
     Sky/Novas/solsys1.c
     )
-set(
-    beammap_srcs
-    beammap.cpp
-    Analysis/AnalParams.cpp
-    Analysis/SimParams.cpp
-    Clean/AzElTemplateCalculator.cpp
-    Clean/Clean.cpp
-    Clean/Clean2dStripe.cpp
-    Clean/CleanBspline.cpp
-    Clean/CleanHigh.cpp
-    Clean/CleanPCA.cpp
-    Clean/CleanSelector.cpp
-    Mapmaking/Coaddition.cpp
-    Mapmaking/CompletenessSim.cpp
-    Mapmaking/Map.cpp
-    Mapmaking/NoiseRealizations.cpp
-    Mapmaking/Observation.cpp
-    Mapmaking/PointSource.cpp
-    Mapmaking/WienerFilter.cpp
-    Observatory/Array.cpp
-    Observatory/Detector.cpp
-    Observatory/Telescope.cpp
-    Observatory/TimePlace.cpp
-    Simulate/MapNcFile.cpp
-    Simulate/SimulationInserter.cpp
-    Simulate/Subtractor.cpp
-    Sky/Source.cpp
-    Sky/astron_utilities.cpp
-    Utilities/BinomialStats.cpp
-    Utilities/GslRandom.cpp
-    Utilities/SBSM.cpp
-    Utilities/convolution.cpp
-    Utilities/gaussFit.cpp
-    Utilities/mpfit.cpp
-    Utilities/sparseUtilities.cpp
-    Utilities/tinyxml2.cpp
-    Utilities/vector_utilities.cpp
-    Sky/Novas/eph_manager.c
-    Sky/Novas/novas.c
-    Sky/Novas/novascon.c
-    Sky/Novas/nutation.c
-    Sky/Novas/readeph0.c
-    Sky/Novas/solsys1.c
+target_include_directories(
+    macana-core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas
     )
-set(
-    fitswriter_srcs
-    fitswriter.cpp
+target_link_libraries(
+    macana-core PUBLIC
+    OpenMP::OpenMP_CXX
+    GSL::gsl GSL::gslcblas
+    fftw3::double::serial
+    ${CXSPARSE_LIBRARIES}
+    ${NETCDF_CXX_LIBRARIES}
+    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
     )
-set(macanap_incs ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas)
+target_compile_options(
+    macana-core PUBLIC
+    ${compile_options})
+
+# build executables
+set(macanap_incs)
 set(
     macanap_libs
-    OpenMP::OpenMP_CXX
-    GSL::gsl GSL::gslcblas
-    fftw3::double::serial
-    ${CXSPARSE_LIBRARIES}
-    ${NETCDF_CXX_LIBRARIES}
-    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
-    )
-set(beammap_incs ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas)
+    macana-core)
+set(beammap_incs)
 set(
     beammap_libs
-    OpenMP::OpenMP_CXX
-    GSL::gsl GSL::gslcblas
-    fftw3::double::serial
-    ${CXSPARSE_LIBRARIES}
-    ${NETCDF_CXX_LIBRARIES}
-    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
-    )
-set(fitswriter_incs ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    macana-core)
+set(fitswriter_incs)
 set(
     fitswriter_libs
     ${NETCDF_CXX_LIBRARIES}
     ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
     )
+set(exec_list macanap beammap fitswriter)
 foreach(exec ${exec_list})
     add_executable(${exec})
-    target_compile_options(
-    ${exec} PRIVATE
-    ${compile_options})
     target_sources(
         ${exec} PRIVATE
         ${exec}.cpp
-        ${${exec}_srcs}
         )
     target_include_directories(
         ${exec} PRIVATE
         ${${exec}_incs}
         )
     target_link_libraries(
-        ${exec}
-        PRIVATE
+        ${exec} PRIVATE
         ${${exec}_libs}
         )
 endforeach(exec ${exec_list})

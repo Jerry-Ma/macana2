@@ -5,14 +5,12 @@
 #include <string>
 #include <sstream>
 #include <gsl/gsl_matrix.h>
-#include <omp.h>
 #include <ctime>
 #include <exception>
-#include <sstream>
 #include <vector>
-
 using namespace std;
 
+#include <omp.h>
 #include "astron_utilities.h"
 #include "nr3.h"
 #include "Array.h"
@@ -34,7 +32,6 @@ using namespace std;
 #include "MapNcFile.h"
 #include "SimulatorInserter.h"
 #include "Subtractor.h"
-#include "nr3.h"
 
 int main(int nArgs, char* args[])
 {

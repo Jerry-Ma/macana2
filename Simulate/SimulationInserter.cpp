@@ -170,7 +170,7 @@ VecDoub SimulatorInserter::createNoiseSignal(Detector det){
 	size_t si=floor (chunkSample);
 	size_t se=ceil (2*chunkSample);
 	scanSdev = stddev(det.hValues,si,se);
-	for (register size_t j=0; j<nSamples; j++)
+    for (size_t j=0; j<nSamples; j++)
 			noiseSignal[j]= gsl_ran_gaussian(this->r,scanSdev);
 	return noiseSignal;
 }

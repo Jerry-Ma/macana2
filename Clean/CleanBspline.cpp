@@ -445,13 +445,13 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 	bMatrix = NULL;
 	//Now compute data side matrix
 	v1 = new double [nP];
-	for (register size_t idata=0; idata < (size_t)nP; idata++)
+    for (size_t idata=0; idata < (size_t)nP; idata++)
 		v1[idata] = 0.0;
 	tsi = new double [nSp];
-	for (register size_t idata=0; idata < (size_t)nSp; idata++)
+    for (size_t idata=0; idata < (size_t)nSp; idata++)
 		tsi[idata] = 0.0;
 	v2 = new double [nSp];
-	for (register size_t idata=0; idata < (size_t)nSp; idata++)
+    for (size_t idata=0; idata < (size_t)nSp; idata++)
 		v2[idata] = 0.0;
 	if (!cs_gaxpy(tta, dataVector,v1)){
 		cerr<<"Error creating v1 vector"<<endl;
@@ -465,7 +465,7 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 		cerr<<"Error creating v2 vector"<<endl;
 		exit(-1);
 	}
-	for (register size_t itsi = 0; itsi<nSp; itsi++){
+    for (size_t itsi = 0; itsi<nSp; itsi++){
         if (!isfinite(v2[itsi]) || !isfinite(tsi[itsi])){
 			cerr<<"Nan detected on tsi vector"<<endl;
 			exit(-1);
@@ -493,7 +493,7 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 
 
 	v1 = new double [dataLen];
-	for (register size_t id = 0; id<dataLen;id++)
+    for (size_t id = 0; id<dataLen;id++)
 		v1[id] = 0.0;
 	if (!cs_gaxpy(baseMatrix, tsi, v1)){
 		cerr<<"CleanBspline():Cannot create atm template from Spline solution"<<endl;
