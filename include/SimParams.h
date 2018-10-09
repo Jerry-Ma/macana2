@@ -2,7 +2,7 @@
 #define _SIMPARAMS_H_
 
 #include <string.h>
-#include <nr3.h>
+#include "nr3.h"
 
 #include "tinyxml2.h"
 

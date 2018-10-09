@@ -12,6 +12,8 @@ if (NOT CMAKE_BUILD_TYPE)
   message(STATUS "No build type selected, default to RelWithDebInfo")
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
+# compiling options
+OPTION(WITH_OPENMP "Enable OpenMP support?" ON)
 
 # set(CMAKE_MACOSX_RPATH 1)
 # set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -42,7 +44,7 @@ message("Update gitversion.h")
 
 # dependencies
 # TODO: better handle varieties of openmp on macos
-find_package(OpenMP REQUIRED)
+find_package(OpenMP)
 find_package(GSL REQUIRED)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
 # TODO: wrap these in imported targets
@@ -54,8 +56,22 @@ print_target_properties(GSL::gsl)
 print_target_properties(GSL::gslcblas)
 print_target_properties(fftw3::double::serial)
 
-# build executables
-set(compile_options -Wall -Wextra -Wno-deprecated-register -DHAVE_INLINE -fexceptions)  # -Werror
+# build options
+set(compile_options -Wall -Wextra -DHAVE_INLINE -fexceptions -Wno-source-uses-openmp)  # -Werror
+set(link_libraries
+    GSL::gsl GSL::gslcblas
+    fftw3::double::serial
+    ${CXSPARSE_LIBRARIES}
+    ${NETCDF_CXX_LIBRARIES}
+    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+    )
+if (OpenMP_FOUND AND ${WITH_OPENMP})
+    list(APPEND link_libraries OpenMP::OpenMP_CXX)
+elseif (OpenMP_FOUND AND (NOT ${WITH_OPENMP}))
+    message("Found OpenMP, use -DWITH_OPENMP=1 to enable")
+elseif (${WITH_OPENMP})
+    message(FATAL_ERROR "Cannot find OpenMP, abort")
+endif()
 include_directories(${CMAKE_BINARY_DIR})  # version header
 
 # manana core
@@ -109,32 +125,25 @@ target_include_directories(
     )
 target_link_libraries(
     macana-core PUBLIC
-    OpenMP::OpenMP_CXX
-    GSL::gsl GSL::gslcblas
-    fftw3::double::serial
-    ${CXSPARSE_LIBRARIES}
-    ${NETCDF_CXX_LIBRARIES}
-    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+    ${link_libraries}
     )
 target_compile_options(
     macana-core PUBLIC
     ${compile_options})
 
-# build executables
+# setup main executables
+# TODO better separate the dependances for macana-core from the main execs
 set(macanap_incs)
-set(
-    macanap_libs
-    macana-core)
+set(macanap_libs macana-core)
+
 set(beammap_incs)
-set(
-    beammap_libs
-    macana-core)
-set(fitswriter_incs)
-set(
-    fitswriter_libs
-    ${NETCDF_CXX_LIBRARIES}
-    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
-    )
+set(beammap_libs macana-core)
+
+# setup utility executables
+set(fitswriter_incs ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(fitswriter_libs ${NETCDF_CXX_LIBRARIES} ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY})
+
+# build
 set(exec_list macanap beammap fitswriter)
 foreach(exec ${exec_list})
     add_executable(${exec})
