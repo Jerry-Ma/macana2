@@ -19,9 +19,9 @@ class Observation
   AnalParams* ap;              ///<pointer to our analysis parameters
 
   //carried over from maps
- //int nrows;                   ///<number of rows in the image
- //int ncols;                   ///<number of columns in the image
- //int nPixels;                 ///<total number of pixels in the image
+  int nrows;                   ///<number of rows in the image
+  int ncols;                   ///<number of columns in the image
+  int nPixels;                 ///<total number of pixels in the image
  // VecDoub rowCoordsPhys;       ///<row coordinates in tangential projection
  // VecDoub colCoordsPhys;       ///<column coordinates in tangential projection
 
@@ -30,11 +30,6 @@ class Observation
   bool saveTimestreams;
 
  public:
-  //dimensions
-  int nrows;                   ///<number of rows in the image
-  int ncols;                   ///<number of columns in the image
-  int nPixels;                 ///<total number of pixels in the image
-
   //the maps
   VecDoub rowCoordsPhys;       ///<row coordinates in tangential projection
   VecDoub colCoordsPhys;       ///<column coordinates in tangential projection
@@ -57,6 +52,8 @@ class Observation
 
   Array * array;
   Telescope *tel;
+
+  double fullIntTime;
 
   //methods
   Observation(AnalParams* ap);

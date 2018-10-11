@@ -1,0 +1,91 @@
+
+Notes for AzTEC C++ pipeline (codename macana)
+
+
+1. INSTALATION NOTES
+
+1.1 REQUISITES:
+
+	You will require a C++ compiler, subversion, and the following libraries must be on your system to compile the aztec_c++ pipeline:
+	
+	*OpenMp
+	*GSL
+	*FFTW3
+	*CSparseX
+	*netcdf
+	*ccfits
+	
+	On Debian/Ubuntu based system you can install them with the following line:
+
+		sudo apt-get install build-essential libfftw3-dev libgsl0-dev libsuitesparse-dev libnetcdf-dev libccfits-dev subversion
+		
+	If you are using Ubuntu 16.04LTS or above change libnetcdf-dev for libnetcdf-cxx-legacy-dev i.e.
+		
+		sudo apt-get install build-essential libfftw3-dev libgsl0-dev libsuitesparse-dev libnetcdf-cxx-legacy-dev libccfits-dev subversion
+
+	On a RPM based systems you can use the yum utility:
+
+		sudo yum install make automake gcc gcc-c++ kernel-devel fftw-devel gsl-devel suitesparse-devel CCfits-devel netcdf-cxx-devel
+		
+		
+1.2 Getting the pipeline:
+
+	The pipeline is available from the lmt observatory proposal system (lmtobservatory.org). To download it use the svn command:
+	
+	svn co svn://lmtobservatory.org/aztec_c++
+
+1.3 Compiling
+
+	macana is configured to compile with g++. If you want to use another C++ compiler you must open the Makefile on aztec_c++ folder and set the CC variable to the compiler executable:
+	For example you can use the Intel C++ Compiler if you set the first line of the Makefile to
+		CC=gcc
+	
+	Now just clean and compile the code:
+		
+		cd ~/aztec_c++
+		make clean
+		make
+	
+	This will create two executable in the ~/aztec_c++ folder:
+		macana		The data reduction pipeline itself
+		fitswriter	An utility to convert pipeline output from NetCDF to FITS
+
+1.4 Environment variables
+
+	It is recommended to setup a couple of environment variables if you are using a bash-like terminal open your .bashrc (or .profile) file and add
+	
+	export AZTEC_MACANA_PATH="$HOME/aztec_c++"
+	export PATH="$PATH:AZTEC_MACANA_PATH"
+	
+	if you are using a csh-like terminal then add the following line to yous .cshrc file:
+	
+	setenv AZTEC_MACANA_PATH $HOME/aztec_c++
+	setenv PATH $PATH:AZTEC_MACANA_PATH
+
+1.5 Python Utilities setup
+
+	If you want to use FRUIT code you will need to setup the python environment. You will require numpy, scipy, python netcdf library and astropy. 
+	It is recomended to have ipython running also
+	
+	On a Debian/Ubuntu distribution you can install them with the following line:
+		
+		sudo apt-get install python-numpy python-scipy python-netcdf python-ipython pip
+		
+	astropy is not part of Debian/Ubuntu so you need to use pip or easy_install to get it:
+		
+		sudo pip install astropy
+
+	Now you just need to setup your PYTHONPATH environment variable,
+	
+		export PYTHONPATH="$PYTHONPATH:$AZTEC_MACANA_PATH/python" 		#For bash-like
+	or
+		setenv PYTHONPATH $PYTHONPATH:$AZTEC_MACANA_PATH/python			#For csh-like
+		
+	
+	Now reopen your terminal and test the installation:
+	
+		ipython
+		from aztec import *
+	
+	You must see no errors.
+	

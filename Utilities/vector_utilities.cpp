@@ -21,39 +21,6 @@ using namespace std;
 
 #include "mpfit.h"
 
-double select(vector<double> input, int index){
- //Partition input based on a selected pivot
-    //More on selecting pivot later
-  //you now know the index of the pivot
-  //if that is the index you want, return
-  //else, if it's larger, recurse on the larger partition
-  //if it's smaller, recurse on the smaller partition
-  unsigned int pivotIndex = rand() % input.size();
-  double pivotValue = input[pivotIndex];
-  vector<double> left;
-  vector<double> right;
-  for(unsigned int x = 0; x < input.size(); x++){
-    if(x != pivotIndex){
-      if(input[x] > pivotValue){
-        right.push_back(input[x]);
-      }
-      else{
-        left.push_back(input[x]);
-      }
-    }
-  }
-  if((int) left.size() == index){
-    return pivotValue;
-  }
-  else if((int) left.size() < index){
-    return select(right, index - left.size() - 1);
-  }
-  else{
-    return select(left, index);
-  }
-}
-
-
 //calculates mean of an array of length nsamp
 double mean(double* arr, int nSamp)
 {
@@ -69,7 +36,7 @@ double mean(double* arr, bool *flags, int nSamp)
   size_t valid = 0;
 
   for(int i=0;i<nSamp;i++){
-	  if (!isnan(arr[i]) && !isinf(arr[i]) && flags[i]){
+	  if (!std::isnan(arr[i]) && !std::isinf(arr[i]) && flags[i]){
 		  mn+=arr[i];
 		  valid++;
 	  }
@@ -93,7 +60,7 @@ double mean(VecDoub &arr)
   int nSamp=arr.size();
   int nValid = 0;
   for(int i=0;i<nSamp;i++){
-    if (!isnan(arr[i]) && !isinf(arr[i])){
+    if (!std::isnan(arr[i]) && !std::isinf(arr[i])){
 	mn+=arr[i];
 	nValid++;
     }
@@ -109,7 +76,7 @@ double mean(VecDoub &arr, VecBool &flags)
   int nSamp=arr.size();
   int nValid = 0;
   for(int i=0;i<nSamp;i++){
-    if (!isnan(arr[i]) && !isinf(arr[i]) &&flags[i]){
+    if (!std::isnan(arr[i]) && !std::isinf(arr[i]) &&flags[i]){
 	mn+=arr[i];
 	nValid++;
     }
@@ -143,6 +110,38 @@ double mean(VecDoub &arr, VecBool &flags, int start, int end, double *ncount )
   double mn=0;
   int nSamp=arr.size();
   if(start < 0 || end >= nSamp){
+    cerr << "vector_utilities::mean(): Out of bounds indices." << endl;
+    exit(1);
+  }
+  double ngood = 0;
+  for(int i=start;i<=end;i++)
+	  if (flags[i]){
+		  mn+=arr[i];
+		  ngood++;
+	  }
+
+  if (ncount != NULL)
+	  *ncount = ngood;
+
+  if (ngood ==0)
+  {
+      cerr << "Warning. Not valid points" << endl;
+      return std::numeric_limits<double>::quiet_NaN();
+  }
+
+  return mn/(end-start);
+}
+
+//----------------------------- o --------------------------------------
+
+
+//calculates mean of a portion of a VecDoub array
+//samples start at start and end at end
+double mean(double *arr, double *flags, int start, int end, double *ncount )
+{
+  double mn=0;
+  int nSamp=end-start;
+  if(start < 0){
     cerr << "vector_utilities::mean(): Out of bounds indices." << endl;
     exit(1);
   }
@@ -203,7 +202,7 @@ double stddev(VecDoub &arr)
   int nValid = 0;
   double std=0.;
   for(int i=0;i<nSamp;i++){
-     if (!isnan(arr[i]) && !isinf(arr[i])){
+     if (!std::isnan(arr[i]) && !std::isinf(arr[i])){
 	std+=(arr[i]-mn)*(arr[i]-mn);
 	nValid++;
      }
@@ -223,7 +222,7 @@ double stddev(VecDoub &arr, VecBool &flags)
   int nValid = 0;
   double std=0.;
   for(int i=0;i<nSamp;i++){
-     if (!isnan(arr[i]) && !isinf(arr[i]) && flags[i]){
+     if (!std::isnan((double)arr[i]) && !std::isinf((double)arr[i]) && flags[i]){
 	std+=(arr[i]-mn)*(arr[i]-mn);
 	nValid++;
      }
@@ -276,9 +275,35 @@ double stddev(VecDoub &arr, VecBool &flags, int start, int end, double *ncount)
   std = std/(ngood+1.0);
   return sqrt(std);
 }
-
+	
 //----------------------------- o ---------------------------------------
 
+double stddev(double *arr, double *flags, int start, int end, double *ncount)
+{
+  int nSamp=end-start;
+  if(start < 0){
+    cerr << "vector_utilities::stddev(): Out of bounds indices." << endl;
+    exit(1);
+  }
+  double mn=mean(arr,flags,start,end, ncount);
+
+  if (mn!=mn){
+	  cerr<<"stddev():: Invalid mean value"<<endl;
+	  return mn;
+  }
+
+  double std=0.;
+  double ngood=0;
+  for(int i=start;i<=end;i++)
+	  if (flags[i]){
+		  std+=(arr[i]-mn)*(arr[i]-mn);
+		  ngood++;
+	  }
+  std = std/(ngood+1.0);
+  return sqrt(std);
+}
+
+//----------------------------- o ---------------------------------------
 
 //calculates MAD, median absolute deviation (from the median), of a VecDoub
 //array. MAD is a relatively robust outlier-resistant replacement for stddev.
@@ -354,7 +379,7 @@ double median (double *data, size_t nSamp){
 	double *tmpData = new double[nSamp];
 	double median = 0.0;
 
-    for (size_t i=0; i<nSamp; i++){
+	for (register size_t i=0; i<nSamp; i++){
 		tmpData[i]=data[i];
 	}
 	gsl_sort(tmpData,1,nSamp);
@@ -367,13 +392,13 @@ double median (double *data, bool *flags, size_t nSamp){
 
 	size_t ngood = 0;
 
-    for (size_t i=0; i<nSamp; i++)
+	for (register size_t i=0; i<nSamp; i++)
 		if (flags[i])
 			ngood++;
 	double *tmpData = new double[ngood];
 	double median = 0.0;
 	size_t ix=0;
-    for (size_t i=0; i<nSamp; i++){
+	for (register size_t i=0; i<nSamp; i++){
 		if (flags[i])
 			tmpData[ix++]=data[i];
 	}
@@ -391,7 +416,7 @@ double percentile (double *data, size_t nSamp, double percentile){
 	double *tmpData = new double[nSamp];
 	double p = 0.0;
 
-    for (size_t i=0; i<nSamp; i++){
+	for (register size_t i=0; i<nSamp; i++){
 		tmpData[i]=data[i];
 	}
 	gsl_sort(tmpData,1,nSamp);
@@ -553,19 +578,22 @@ bool writeMatOut(const char* outFile, MatDoub &outMat)
 
   //set precision to something reasonable for det values
   out.precision(14);
-
+  char delim;
   //and the output
-  for(int i=0;i<outMat.nrows();i++)
-  for(int j=0;j<outMat.ncols();j++)
-    {
-      out << outMat[i][j] << "\n";
-      if(out.bad()){
-	cerr << "vector_utilities::writeMatOut():";
-	cerr << " Error writing to " << outFile << endl;
-	return 0;
-      }
-    }
-
+  for(int i=0;i<outMat.nrows();i++){
+	  for(int j=0;j<outMat.ncols();j++)
+	  {
+		  delim = ',';
+		  if (j == outMat.ncols()-1)
+			  delim = '\n';
+		  out << outMat[i][j] << delim;
+		  if(out.bad()){
+			  cerr << "vector_utilities::writeMatOut():";
+			  cerr << " Error writing to " << outFile << endl;
+			  return 0;
+		  }
+	  }
+  }
   //flush the buffer just to be sure
   out.flush();
 
@@ -575,6 +603,48 @@ bool writeMatOut(const char* outFile, MatDoub &outMat)
 
   return 1;
 }
+
+
+//----------------------------- o ---------------------------------------
+
+
+//debug utility - write out matrix data as txt file
+//bool writeMatOut(const char* outFile, gsl_matrix *outMat)
+//{
+//  ofstream out(outFile);
+//  if(out.bad()){
+//    cerr << "vector_utilities::writeMatOut():";
+//    cerr << " Error opening " << outFile << endl;
+//    return 0;
+//  }
+//
+//  //set precision to something reasonable for det values
+//  out.precision(14);
+//  char delim;
+//  //and the output
+//  for(size_t i=0;i<outMat->size1;i++){
+//	  for(size_t j=0;j<outMat->size2;j++)
+//	  {
+//		  delim = ',';
+//		  if (j == outMat->size2-1)
+//			  delim = '\n';
+//		  out << gsl_matrix_get(outMat, i,j) << delim;
+//		  if(out.bad()){
+//			  cerr << "vector_utilities::writeMatOut():";
+//			  cerr << " Error writing to " << outFile << endl;
+//			  return 0;
+//		  }
+//	  }
+//  }
+//  //flush the buffer just to be sure
+//  out.flush();
+//
+//  //announce what you just did
+//  cout << "Wrote out " << outFile <<  " with nrows=" << outMat->size1;
+//  cout << " and ncols=" << outMat->size1 << endl;
+//
+//  return 1;
+//}
 
 
 //----------------------------- o ---------------------------------------
@@ -1183,39 +1253,53 @@ double findWeightThreshold(MatDoub &myweight, double cov)
 {
   int nr = myweight.nrows();
   int nc = myweight.ncols();
-  vector<double> og;
-  for(int x = 0; x < nr; x++){
-    for(int y = 0; y < nc; y++){
-      if(myweight[x][y] > 0.){
-	og.push_back(myweight[x][y]);
-      }
-    }
-  }
+  int npts = nr*nc;
+  
   //using gsl vector sort routines to do the coverage cut
   //so we need to repack the maps
   //start with the weight map (keep idl utils nomenclature)
+  gsl_vector* covcov = gsl_vector_alloc(npts);
+  for(int i=0;i<nr;i++) 
+    for(int j=0;j<nc;j++)
+      gsl_vector_set(covcov,nc*i+j,myweight[i][j]);
+
+  //sort the weights and keep the indices
+  gsl_permutation* covprm = gsl_permutation_alloc(npts);
+  gsl_sort_vector_index(covprm,covcov);
   
   //find the point where 25% of nonzero elements have greater weight
   double covlim;
   int covlimi;
-  covlimi = 0.75*og.size();
-  covlim = select(og, covlimi);
+  int nNonzero=0;
+  int firstNonzero=0;
+  for(int i=0;i<npts;i++){
+    if(gsl_vector_get(covcov,gsl_permutation_get(covprm,i)) > 0.){
+      firstNonzero = i;
+      break;
+    }
+  }
+  nNonzero = npts-firstNonzero;
+  covlimi = firstNonzero + 0.75*nNonzero;
+  covlim = gsl_vector_get(covcov,gsl_permutation_get(covprm,covlimi));
   double mval;
   double mvali;
-  mvali = floor((covlimi+og.size())/2.);
-  mval = select(og, mvali);
+  mvali = floor((covlimi+npts)/2.);
+  mval = gsl_vector_get(covcov,gsl_permutation_get(covprm,mvali));
   
+  //done with covcov and covprm
+  gsl_vector_free(covcov);
+  gsl_permutation_free(covprm);
+
   //return the weight cut value
   return cov*mval;
 }
 
 
 int linearDeviates (int m, int n,  double *p, double *deviates, double **derivs, void * private_data){
-    (void) n;
-    (void) derivs;
 	mpfit_basic_data *data = (mpfit_basic_data *) private_data;
 	for (int i =0; i< m; i++)
-		deviates[i] = abs((data->y[i]-p[0])/p[1]- data->x[i]);
+		//deviates[i] = abs((data->y[i]-p[0])/p[1]- data->x[i]);
+		deviates[i] = abs(data->y[i]-((p[1]*data->x[i])+p[0]));
 
 	return 0;
 }
@@ -1261,6 +1345,7 @@ int linearDeviates (int m, int n,  double *p, double *deviates, double **derivs,
 double linfit_flags (const double *x,const bool *flagsx, const double *y, const bool *flagsy, size_t nSamples, double *c0, double *c1, bool useMpfit){
 
 	size_t ngood=0;
+	bool ignoreFlags = false;
 
 
 		for (size_t i =0; i<nSamples; i++){
@@ -1268,11 +1353,10 @@ double linfit_flags (const double *x,const bool *flagsx, const double *y, const 
 				ngood++;
 		}
 
-	if (ngood == 0){
-		cerr<<"linfit_flags()::No good valid points"<<endl;
-		*c0=0.0;
-		*c1=1.0;
-		return -1.0;
+	if (ngood <= 1*nSamples/4){
+		cerr<<"linfit_flags()::Requesting Linear Fit with less than 25\% of the points. Using all the points instead..."<<endl;
+		ignoreFlags = true;
+		ngood = nSamples;
 	}
 	//cerr <<"linfit_flags():: Using a factor points of: "<<double(ngood)/double(nSamples)<<endl;
 	//Copy data
@@ -1283,7 +1367,10 @@ double linfit_flags (const double *x,const bool *flagsx, const double *y, const 
 
 
 	for (size_t i =0; i<nSamples; i++){
-		if (flagsx[i] && flagsy[i]){
+		if (ignoreFlags){
+			newx[iSamples] = x[i];
+			newy[iSamples++] = y[i];
+		}else if (flagsx[i] && flagsy[i]){
 			newx[iSamples] = x[i];
 			newy[iSamples++] = y[i];
 		}
@@ -1297,6 +1384,12 @@ double linfit_flags (const double *x,const bool *flagsx, const double *y, const 
 
 		//gsl_multifit_linear_svd()
 		gsl_fit_linear(newx,1,newy,1,ngood,c0,c1,&c00,&c01,&c11,&sumsq);
+		if (c0!=c0 || c1 !=c1){
+			*c0=mean(newy,ngood)-mean(newx,ngood);
+			*c1=1.0;
+			cerr<<"Bad fit in data"<<endl;
+			sumsq=-1;
+		}
 		tResult = sumsq;
 	}else{
 		double pars [2] = {0.0,1.0};
@@ -1309,7 +1402,7 @@ double linfit_flags (const double *x,const bool *flagsx, const double *y, const 
 		*c0 = pars[0];
 		*c1 = pars[1];
 		if (status < 0){
-			*c0=0.0;
+			*c0=mean(newy,ngood)-mean(newx,ngood);
 			*c1=1.0;
 			cerr<<"Bad fit in data"<<endl;
 		}
@@ -1409,6 +1502,7 @@ double flagCorrelation(const double* x, const bool* fx, const double* y,const bo
 
 
 double flagCovariance(const double* x, const double* fx, const double* y,const double* fy, size_t nSamples) {
+	size_t ngood=0;
 
 	double xx[nSamples];
 	double yy[nSamples];

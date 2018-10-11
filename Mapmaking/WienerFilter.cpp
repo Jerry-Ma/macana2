@@ -19,6 +19,7 @@ using namespace std;
 #include <gsl/gsl_sort_vector.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
+#include "GslRandom.h"
 #include "WienerFilter.h"
 #include "Coaddition.h"
 #include "NoiseRealizations.h"

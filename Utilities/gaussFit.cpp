@@ -78,8 +78,6 @@ struct vars_struct {
 int myfunct_gauss(int m, int n, double *p, double *deviates,
                  double **derivs, void *vars)
 {
-  (void) n;
-  (void) derivs;
   struct vars_struct *v = (struct vars_struct *) vars;
   double *az = v->az;
   double *el = v->el;
@@ -182,7 +180,7 @@ double mpGaussFit(double* params, double* params_err, double* az, double* el,
   pars[6].fixed=1;
 
   //constrain any other parameters as requested by fixme and fixVals
-  for(unsigned int i=0;i<fixme.size();i++){
+  for(int i=0;i<fixme.size();i++){
     if(fixme[i]==1){
       pars[i].fixed=1;
       xall[i] = fixVals[i];

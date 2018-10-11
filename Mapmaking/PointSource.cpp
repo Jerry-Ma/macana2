@@ -297,9 +297,7 @@ bool PointSource::fitGaussianToSource(double fwhmx, double fwhmy)
   VecDoub fixVals(7,0.);
   VecDoub iguess(7,0.0);
 
-  fixme[0]=1;
-  fwhmx=0;
-  fwhmy=0;
+  fixme[0]=0;
 //  cout<<"Assuming a pointsource template of "<< fwhmx *SIGMA_TO_FWHM / RAD_ASEC << ","<<fwhmy *SIGMA_TO_FWHM /RAD_ASEC<<endl;
   if (fwhmx > 0.0){
 	  fixVals[2]=fwhmx;
@@ -313,6 +311,9 @@ bool PointSource::fitGaussianToSource(double fwhmx, double fwhmy)
   	 iguess[3] = fwhmy;
   } else
 	 iguess[3] = tsigma;
+
+
+
 
   size_t xc = this->postageStamp->image.nrows()/2;
   size_t yc = this->postageStamp->image.ncols()/2;

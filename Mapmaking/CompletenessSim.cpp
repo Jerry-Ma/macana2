@@ -6,6 +6,7 @@ using namespace std;
 #include "AnalParams.h"
 #include "astron_utilities.h"
 #include "Coaddition.h"
+#include "GslRandom.h"
 #include "CompletenessSim.h"
 #include "BinomialStats.h"
 #include "vector_utilities.h"
@@ -120,6 +121,7 @@ bool CompletenessSim::calcCompleteness()
 
   //populate synthetic source input locations
   bool done = false;
+  GslRandom ran;
   int count = 0;
   synthRowInput.resize(nBins*nSources);
   synthColInput.resize(nBins*nSources);
@@ -133,8 +135,8 @@ bool CompletenessSim::calcCompleteness()
 		   cmap->filteredSignal->getCutYRangeHigh()};
   //randomly draw locations until we have all we need
   while(!done){
-    int tempRow = floor(ap->macanaRandom->uniformDeviate(xRange[0], xRange[1]) + 0.5);
-    int tempCol = floor(ap->macanaRandom->uniformDeviate(yRange[0], yRange[1]) + 0.5);
+    int tempRow = floor(ran.uniformDeviate(xRange[0], xRange[1]) + 0.5);
+    int tempCol = floor(ran.uniformDeviate(yRange[0], yRange[1]) + 0.5);
     if(realRecovBool[tempRow][tempCol]){
       synthRowInput[count] = tempRow;
       synthColInput[count] = tempCol;

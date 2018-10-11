@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cmath>
 #include <string>
+#include <omp.h>
 using namespace std;
 
 #include "nr3.h"
@@ -317,7 +318,7 @@ bool TimePlace::findUniqueTelUtc()
   for(int i=1;i<nSamples;i++){
     if(telUtc[i] < telUtc[i-1]){
       cerr << "TimePlace::findUniqueTelUtc(): ";
-      cerr << "telUtc is not constant or increasing." << endl;
+      cerr << "telUtc is not constant or increasing on file:"<< ap->getDataFile() << endl;
       cerr << "Measuring glitch ..." << endl;
 
       //measure the glitch.  If it's less than 32 samples we will

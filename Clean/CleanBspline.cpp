@@ -1,4 +1,4 @@
-
+#include <omp.h>
 #include <iostream>
 #include <cmath>
 #include <gsl/gsl_statistics.h>
@@ -9,26 +9,24 @@
 #include <gsl/gsl_eigen.h>
 #include <gsl/gsl_sf_log.h>
 #include <gsl/gsl_sf_exp.h>
-#include <omp.h>
 #include <fftw3.h>
 #include <gsl/gsl_sort_double.h>
 #include <gsl/gsl_fft_real.h>
 #include <gsl/gsl_fft_halfcomplex.h>
 #include <gsl/gsl_fit.h>
+#include <gsl/gsl_spline.h>
 #include <assert.h>
 #include <libgen.h>
 
-
-
-
-using namespace std;
-
 #include "CleanBspline.h"
-#include "CleanPCA.h"
-#include "CleanSelector.h"
 #include "vector_utilities.h"
 #include "sparseUtilities.h"
 #include "AzElTemplateCalculator.h"
+
+
+using namespace std;
+#define USEMPFIT false
+#define LINFIT true
 
 CleanBspline::CleanBspline(Array* dataArray, Telescope* tel) :
   Clean(dataArray,tel){
@@ -42,15 +40,14 @@ CleanBspline::CleanBspline(Array* dataArray, Telescope* tel) :
   detPerHextant=NULL;
   nDetPerHextant.resize(0);
   fullMedianValues.resize(0);
-  bright = 2.0/60.0;
-  if (ap->getObservatory().compare("LMT")==0)
-	  bright = 0.5/60.0;
+  bright = ap->mask /3600.0;
   resample = ap->getResample();
   maxHex = 0;
   fixedData = NULL;
   totSamples = 0;
   scanStatus = NULL;
   currScan = 0;
+  cleanKernel = false;
 
 #if defined(_OPENMP)
   tid = omp_get_thread_num() + 1;
@@ -58,8 +55,12 @@ CleanBspline::CleanBspline(Array* dataArray, Telescope* tel) :
   tid = 0;
 #endif
   if (resample <1){
-	  cout<< "CleanBspline "<< tid<<" ). resample value is less than 1. Set to use all samples instead"<<endl;
+	  cout<< "CleanBspline ("<< tid<<"). resample value is less than 1. Set to use all samples instead"<<endl;
 	  resample = 1;
+  }
+
+  if (bright>0.0){
+	  cout<< "CleanBspline ("<< tid<<"). Masking out "<< ap->mask << " arcsec from the center of the map" <<endl;
   }
 
 
@@ -72,16 +73,21 @@ void CleanBspline::removeBadBolos(){
 	size_t totSamples =  dataArray->detectors[0].hValues.size();
 
 	int *di = dataArray->getDetectorIndices();
+	size_t refBolo = dataArray->getRefBoloIndex();
 
 	VecDoub avg (totSamples,0.0);
 	VecDoub detMean (nDetectors);
-	VecInt count(totSamples, 0.0);
-	for (size_t i=0; i<nDetectors; i++){
-		detMean[i] = mean(&dataArray->detectors[di[i]].hValues[0], &dataArray->detectors[di[i]].hSampleFlags[0], totSamples);
-		for (size_t j=0; j<totSamples; j++){
-			if (dataArray->detectors[di[i]].hSampleFlags[j]){
-				avg[j]+=(dataArray->detectors[di[i]].hValues[j]-detMean[i]);
-				count[j]++;
+	VecInt count(totSamples, 0);
+	MatDoub linCoeffs (nDetectors,2);
+	for (size_t iBolo = 0; iBolo<nDetectors; iBolo++){
+
+		linfit_flags(&dataArray->detectors[di[refBolo]].hValues[0], &dataArray->detectors[di[refBolo]].hSampleFlags[0], \
+				&dataArray->detectors[di[iBolo]].hValues[0], &dataArray->detectors[di[iBolo]].hSampleFlags[0] , \
+				totSamples, &linCoeffs[iBolo][0], &linCoeffs[iBolo][1], true);
+		for (size_t iSample=0; iSample<totSamples; iSample++){
+			if (dataArray->detectors[di[iBolo]].hSampleFlags[iSample]){
+				avg[iSample]+= (dataArray->detectors[di[iBolo]].hValues[iSample]-linCoeffs[iBolo][0])/linCoeffs[iBolo][1];
+				count[iSample]++;
 			}
 		}
 	}
@@ -97,14 +103,14 @@ void CleanBspline::removeBadBolos(){
 	for (size_t i=0; i<nDetectors; i++){
 		for (size_t j=0; j<totSamples; j++){
 			if (dataArray->detectors[di[i]].hSampleFlags[j])
-				detPow[i] += pow((dataArray->detectors[di[i]].hValues[j]-detMean[i])-avg[j], 2.0);
+				detPow[i] += pow(dataArray->detectors[di[i]].hValues[j]-(linCoeffs[i][1]*avg[j]+linCoeffs[i][0]), 2.0);
 		}
 	}
 
 	double mPow = median(&detPow[0],nDetectors);
 	size_t badBoloCount = 0;
 	for (size_t i=0; i<nDetectors; i++)
-		if (detPow[i]> 3.0*mPow){
+		if (detPow[i]> 3.5*mPow){
 			dataArray->detectors[di[i]].goodFlag = 0;
 			badBoloCount++;
 		}
@@ -113,45 +119,51 @@ void CleanBspline::removeBadBolos(){
 		dataArray->updateDetectorIndices();
 }
 
-
 bool CleanBspline::clean(){
 	double cleanStripe = dataArray->getAp()->getCleanStripe();
 
 	cleanStripe = abs(cleanStripe);
-
 	calibrate();
-//	removeBadBolos();
-	dataArray->fakeAtmData(false);
+		if (ap->getOrder() != 100)
+			if (ap->getAzelMap() != 1)
+					removeBadBolos();
+		dataArray->fakeAtmData(this->cleanKernel);
+		
+
+	
+
 	totSamples =  dataArray->detectors[0].hValues.size();
 	atmTemplate = VecDoub (totSamples*dataArray->getNDetectors(),0.0);
 
-
-
 	if (ap->getOrder() != 100)
 		this->cleanScans();
+	else{
+		cerr<<"CleanBspline::Atmosphere subtraction is not done as requested by user (splineOrder=100)."<<endl;
+		return true;
+	}
+
 	int *di = dataArray->getDetectorIndices();
 	for (size_t i=0; i<(size_t)dataArray->getNDetectors(); i++)
 		for (size_t j=0; j<totSamples; j++){
-			if (ap->getOrder() != 100)
-				dataArray->detectors[di[i]].hValues[j] -= atmTemplate[i*totSamples + j];
-			else
-				dataArray->detectors[di[i]].hValues[j] -= atmTemplate[i*totSamples + j];
-			dataArray->detectors[di[i]].atmTemplate[j] -= atmTemplate[i*totSamples + j];
+			dataArray->detectors[di[i]].atmTemplate[j]-= atmTemplate[i*totSamples + j];
+			dataArray->detectors[di[i]].hValues[j] -= atmTemplate[i*totSamples + j];
+			if (this->cleanKernel){
+					dataArray->detectors[di[i]].hKernel[j] -= atmTemplate[i*totSamples + j];
+			}
+			
+
 		}
 
-//	this->removeLargeScaleResiduals(STRIPE_SCAN,0.1);
 	if (cleanStripe != 0){
 		this->removeLargeScaleResiduals(translateStripeMethod(),cleanStripe);
 	}
-
-
-
-	//delete gainFixer;
-	//delete [] fixedData;
 	atmTemplate.resize(0);
+	this->destroyBaseMatrix();
+	if (ap->getOrder() != 100)
+		if (ap->getAzelMap() != 1)
+				removeBadBolos();
 	return true;
 }
-
 
 
 
@@ -162,6 +174,7 @@ bool CleanBspline::cleanScans (){
 	size_t nDetectors=dataArray->getNDetectors();
 
 	int *di = dataArray->getDetectorIndices();
+	int refBolo=-1;
 
 	bool debug = false;
 
@@ -171,7 +184,6 @@ bool CleanBspline::cleanScans (){
 			scanStatus[k] = true;
 	}
 
-//	VecInt boloGroup;
 	double cleanPixelSize = ap->getCleanPixelSize()/3600.0;
 
 	if (cleanPixelSize <= 0){
@@ -186,23 +198,6 @@ bool CleanBspline::cleanScans (){
 		size_t si = telescope->scanIndex[0][k];
 		size_t nSamples = ei-si;
 
-//		size_t nDetectors = 0;
-//		for (size_t ihex = 5; ihex <=6; ihex++){
-//			char buff [10];
-//			int *di;
-//			sprintf(buff, "h%lu",ihex);
-//			nDetectors = 0;
-//			for (size_t ibb = 0; ibb<totDetectors; ibb++)
-//				if (dataArray->detectors[diFull[ibb]].getName().find(buff) != string::npos)
-//					nDetectors++;
-//			di = new int [nDetectors];
-//			size_t idi = 0;
-//			for (size_t ibb = 0; ibb<totDetectors; ibb++)
-//							if (dataArray->detectors[diFull[ibb]].getName().find(buff) != string::npos)
-//								di[idi++]=diFull[ibb];
-
-//		int *di;
-
 		double increment = 1.0;
 		size_t index;
 		size_t oSamples=nSamples;
@@ -211,6 +206,11 @@ bool CleanBspline::cleanScans (){
 			long nnSamples = long(round(nSamples/resample));
 			increment = double(nSamples-1)/double(nnSamples-1);
 			nSamples =nnSamples;
+
+			if (size_t (round(increment*(nSamples-1))) != oSamples-1){
+				cerr<<"Cannot set the resample value to "<< resample << "please change it on your apFile"<<endl;
+				exit(-1);
+			}
 		}
 
 		size_t dataLen = nDetectors*nSamples;
@@ -221,31 +221,36 @@ bool CleanBspline::cleanScans (){
 		bool *flags = new bool [dataLen];
 		double *atmTemplate =NULL;
 		double dist = 0.0;
-		//cout<<"CleanBspline("<<tid<<")::clean(). Starting cleaning on scan: "<<" " <<k <<" of "<<nScans-1. <<" (Nbolo = "<<nDetectors<<")"<<endl;
-		//Copy data to vectors
+
 
 		for(size_t i=0; i<nDetectors; i++){
 			for(size_t j=0; j<nSamples; j++){
 				index = long(round(j*increment));
 				dataVector[i*nSamples +j]=dataArray->detectors[di[i]].hValues[si+index];
-				gsl_vector_set(raVector,i*nSamples+j, dataArray->detectors[di[i]].azElRaPhys[si+index]);
-				gsl_vector_set(decVector,i*nSamples+j, dataArray->detectors[di[i]].azElDecPhys[si+index]);
-				flags[i*nSamples+j] = (bool) dataArray->detectors[di[i]].hSampleFlags[si+index];
-				dist = sqrt (pow(dataArray->detectors[di[i]].azElRaPhys[si+index],2.0)+pow(dataArray->detectors[di[i]].azElDecPhys[si+index],2.0));
+				gsl_vector_set(raVector,i*nSamples+j, dataArray->detectors[di[i]].hAzPhys[si+index]);
+				gsl_vector_set(decVector,i*nSamples+j, dataArray->detectors[di[i]].hElPhys[si+index]);
+				flags[i*nSamples+j] = true;// (bool) dataArray->detectors[di[i]].hSampleFlags[si+index];
+				dist = sqrt (pow(dataArray->detectors[di[i]].hRa[si+index],2.0)+pow(dataArray->detectors[di[i]].hDec[si+index],2.0));
+				dist*=180.0/M_PI;
 				if (dist<this->bright)
 					flags[i*nSamples+j] = false;
 			}
 		}
 
 		if (debug){
-			writeVecOut ("oData.txt", dataVector, nSamples*nDetectors);
+			char buffer [1000];
+			strcpy(buffer, this->ap->getDataFile());
+			string filename = basename(buffer);
+			filename = filename.substr(0,filename.find(".nc"));
+			sprintf(buffer, "observed_%s_ps%02d_cc%03d.txt", filename.c_str(), int(this->ap->getCleanPixelSize()), int (1.0/this->ap->getControlChunk()));
+			writeVecOut (buffer, dataVector, nSamples*nDetectors);
 		}
 
 		if (fixFlags(dataVector,flags,(int)nDetectors,(int)nSamples)){
-			atmTemplate = cottingham(dataVector, raVector, decVector, flags, nDetectors, nSamples, cleanPixelSize, 0);
+			atmTemplate = cottingham(dataVector, raVector, decVector, flags, nDetectors, nSamples, cleanPixelSize, refBolo);
 
 			if (!atmTemplate){
-				cout<<"CleanBspline("<<tid<<")::cleanScans(). Failed to produce and atmosphere template. Setting scan to 0.0"<<endl;
+				cout<<"CleanBspline("<<tid<<")::cleanScans(). Failed to produce and atmosphere template. on scan "<<k <<"for file"<<ap->getDataFile()<<endl;
 				for(size_t i=0; i<nDetectors; i++){
 					for(size_t j=0; j<oSamples; j++){
 						dataArray->detectors[di[i]].hValues[si+j]=0.0;
@@ -256,8 +261,15 @@ bool CleanBspline::cleanScans (){
 			}else{
 
 				if (debug){
-					writeVecOut ("residualData.txt", dataVector, dataLen);
-					writeVecOut ("template1.txt", atmTemplate, dataLen);
+					char buffer[1000];
+					strcpy(buffer, this->ap->getDataFile());
+					string filename = basename(buffer);
+					filename = filename.substr(0,filename.find(".nc"));
+					sprintf(buffer, "residual_%s_ps%02d_cc%03d.txt", filename.c_str(), int(this->ap->getCleanPixelSize()), int (1.0/this->ap->getControlChunk()));
+					writeVecOut (buffer, dataVector, nSamples*nDetectors);
+					//writeVecOut ("residualData.txt", dataVector, dataLen);
+					sprintf(buffer, "atmtemplate_%s_ps%02d_cc%03d.txt", filename.c_str(), int(this->ap->getCleanPixelSize()), int (1.0/this->ap->getControlChunk()));
+					writeVecOut (buffer, atmTemplate, dataLen);
 					exit(-1);
 				}
 				for(size_t i=0; i<nDetectors; i++){
@@ -265,11 +277,17 @@ bool CleanBspline::cleanScans (){
 					subtractTemplate (&this->atmTemplate[i*totSamples + si], oSamples, &atmTemplate[i*nSamples], nSamples, increment, NULL, true);
 				}
 
+				if (debug){
+					writeVecOut ("templateInterp.txt", &this->atmTemplate[si], oSamples);
+					writeVecOut ("fullOdata.txt", &dataArray->detectors[di[0]].hValues[si], oSamples);
+					exit(-1);
+				}
+
 				delete [] atmTemplate;
 			}
 		}
 		else{
-			cout<<"CleanBspline("<<tid<<")::cleanScans(). Failed to produce and atmosphere template. Setting scan to 0.0"<<endl;
+			cout<<"CleanBspline("<<tid<<")::cleanScans(). Not enough valid samples  to produce and atmosphere template. on scan "<<k <<"for file"<<ap->getDataFile()<<endl;
 							for(size_t i=0; i<nDetectors; i++){
 								for(size_t j=0; j<oSamples; j++){
 									dataArray->detectors[di[i]].hValues[si+j]=0.0;
@@ -277,6 +295,7 @@ bool CleanBspline::cleanScans (){
 								}
 							}
 		}
+
 
 		//delete [] di;
 		delete [] dataVector;
@@ -297,13 +316,10 @@ CleanBsplineDestriping CleanBspline::translateStripeMethod(){
 		return STRIPE_FFT;
 	if (ap->stripeMethod =="pca")
 		return STRIPE_PCA;
-	if (ap->stripeMethod == "spline")
-		return SUBARRAY_SPLINE;
-	if (ap->stripeMethod == "scan")
-		return STRIPE_SCAN;
-	if (ap->stripeMethod == "azel" )
+	if (ap->stripeMethod == "azel" ){
+		cout <<"CleanBspline ("<<tid<<")Using Az/El polynomial template of order:"<<ap->cleanStripe<<endl;
 		return AZEL_TEMPLATE;
-
+	}
 	return STRIPE_NONE;
 }
 
@@ -338,49 +354,36 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 		rBoloIndex = (size_t) refBolo;
 
 	MatDoub relCoeff (nDetectors, 2);
-	VecDoub energy (nDetectors,0.0);
-	VecDoub meanTod (nSamples,0.0);
-//	writeVecOut("oDataVector.txt", dataVector, nDetectors*nSamples);
+	VecDoub AzOff(nDetectors);
+	VecDoub ElOff(nDetectors);
+	int * di = dataArray->getDetectorIndices();
+	//VecDoub energy (nDetectors,0.0);
+	//VecDoub meanTod (nSamples,0.0);
+
 	for (size_t id=0; id<nDetectors; id++){
-		if (linfit_flags(&dataVector[rBoloIndex*nSamples], &flags[rBoloIndex*nSamples], &dataVector[id*nSamples], &flags[id*nSamples], nSamples,&relCoeff[id][0], &relCoeff[id][1],false)<0){
-			cerr<<"Data on file "<<dataArray->getAp()->getDataFile()<< "has no valid data on this scan"<<endl;
-			return NULL;
-		}
-		for (size_t is = 0; is <nSamples; is++){
-			dataVector[id*nSamples+is] = (dataVector[id*nSamples+is]-relCoeff[id][0])/relCoeff[id][1];
-			meanTod[is] += dataVector[id*nSamples+is]/nDetectors;
-		}
+		AzOff[id]= dataArray->detectors[di[id]].azOffset;
+		ElOff[id]= dataArray->detectors[di[id]].elOffset;
+
+		VecBool testFlags (nSamples, true);
+
+#ifdef LINFIT
+			if (linfit_flags(&dataVector[rBoloIndex*nSamples], &flags[rBoloIndex*nSamples], &dataVector[id*nSamples], &flags[id*nSamples], nSamples,&relCoeff[id][0], &relCoeff[id][1],USEMPFIT)<0){
+			//if (linfit_flags(&dataVector[rBoloIndex*nSamples], &testFlags, &dataVector[id*nSamples],  &testFlags, nSamples,&relCoeff[id][0], &relCoeff[id][1],USEMPFIT)<0){
+				cerr<<"Data on file "<<dataArray->getAp()->getDataFile()<< "has no valid data on this scan"<<endl;
+				return NULL;
+			}
+			for (size_t is = 0; is <nSamples; is++)
+				dataVector[id*nSamples+is] = (dataVector[id*nSamples+is]-relCoeff[id][0])/relCoeff[id][1];
+#else
+		relCoeff[id][0]= mean ( &dataVector[id*nSamples], &flags[id*nSamples], nSamples);
+		relCoeff[id][1]=1.0;
+
+		for (size_t is = 0; is <nSamples; is++)
+			dataVector[id*nSamples+is]-=relCoeff[id][0];
+#endif
 	}
 
-//		writeVecOut("newDataVector.txt", dataVector, nDetectors*nSamples);
-//		writeVecOut("newFlagVector.txt", flags, nDetectors*nSamples);
-		//exit(-1);
-	for (size_t id=0; id<nDetectors; id++)
-		for (size_t is = 0; is <nSamples; is++)
-			energy[id]+= pow((dataVector[id*nSamples+is]-meanTod[is]),2.0);
-
-//	int *di = dataArray->getDetectorIndices();
-//	size_t *ide = new size_t [nDetectors];
-//	gsl_sort_index(ide, &energy[0],1,nDetectors);
-//
-//	char buff [200];
-//	sprintf(buff,"%s_badBolo.txt",ap->getMapFile().c_str());
-//
-//	ofstream dfile(buff,std::ios::app);
-//	//dfile.open
-//	cout <<"Write bad bolo information"<<endl;
-//	for (size_t ibb=0; ibb<10; ibb++)
-//		dfile<<dataArray->detectors[di[ide[nDetectors-ibb-1]]].getName()<<",";
-//	dfile<<endl;
-//	dfile.close();
-
-//
-
-//	exit(-1);
-
-
-
-	this->createBaseMatrix(nSamples, nDetectors);
+	this->createBaseMatrix(nSamples, nDetectors);//, 2,AzOff,ElOff);
 	nSp = this->baseMatrix->n;
 	pMatrix = this->getPMatrix(raVector, decVector, cleanPixelSize);
 	nP = pMatrix->n;
@@ -465,10 +468,12 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 		cerr<<"Error creating v2 vector"<<endl;
 		exit(-1);
 	}
-    for (size_t itsi = 0; itsi<nSp; itsi++){
-        if (!isfinite(v2[itsi]) || !isfinite(tsi[itsi])){
+	bool success = true;
+	for (register size_t itsi = 0; itsi<nSp; itsi++){
+		if (!finite(v2[itsi]) || !finite(tsi[itsi])){
 			cerr<<"Nan detected on tsi vector"<<endl;
-			exit(-1);
+			success = false;
+			break;
 		}
 		tsi[itsi]-=v2[itsi];
 	}
@@ -484,6 +489,11 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 	v2= NULL;
 	a1= NULL;
 	tta = NULL;
+	if (!success){
+		delete [] tsi;
+		cs_spfree(phi);
+		return NULL;
+	}
 	//Now solve linear system
 	cs_dropnotfinite(phi);
 	if (!cs_qrsol(3,phi,tsi)){
@@ -518,100 +528,25 @@ double * CleanBspline::cottingham(double *dataVector, gsl_vector *raVector, gsl_
 	double  *atmTemplate = new double[dataLen];
 	bool  *cFlags = new bool [nSamples];
 	double c0,c1;
-	double pointDist;
 	for (size_t i=0; i<nDetectors; i++){
 		for (size_t j=0; j<nSamples; j++){
-			pointDist = sqrt(pow(gsl_vector_get(raVector, i*nSamples+j),2)+pow(gsl_vector_get(decVector, i*nSamples+j),2));
-			cFlags[j] = flags[i*nSamples+j]; // & (pointDist < bright);
+			cFlags[j] = flags[i*nSamples+j];
+			//cFlags[j] = true;
 		}
-		linfit_flags(&dataVector[i*nSamples],cFlags, &v1[i*nSamples],cFlags, nSamples, &c0,&c1, true);
-		//gsl_fit_linear(&dataVector[i*nSamples],1,&v1[i*nSamples],1,nSamples, &c0,&c1,&cov00,&cov01,&cov11,&chisq);
+		linfit_flags(&dataVector[i*nSamples],cFlags, &v1[i*nSamples],cFlags, nSamples, &c0,&c1, USEMPFIT);
 
 		for (size_t j=0; j<nSamples; j++){
 			atmTemplate [i*nSamples+j]= (v1[i*nSamples+j]-c0)/c1;
 			atmTemplate [i*nSamples+j] *= relCoeff[i][1];
 			atmTemplate [i*nSamples+j] += relCoeff[i][0];
 		}
-
 	}
-	delete [] cFlags;
 
-//	writeVecOut("newAtmTemplate.txt", atmTemplate, nDetectors*nSamples);
-//	exit(-1);
+	delete [] cFlags;
 
 	delete []v1;
 	return atmTemplate;
 
-}
-
-
-bool CleanBspline::removeScanPattern (double *dataVector, gsl_vector *azVector, gsl_vector *elVector,
-		double *flags, size_t nDetectors, size_t nSamples){
-	size_t ngood = 0;
-	size_t nPar = 7;
-	for (size_t i=0; i<nDetectors*nSamples;i++)
-		if (flags[i])
-			ngood++;
-
-	gsl_matrix *S = gsl_matrix_alloc(ngood,nPar);
-	gsl_matrix *SS = gsl_matrix_alloc(nPar,nPar);
-	gsl_vector *d = gsl_vector_alloc(ngood);
-	gsl_vector *Std = gsl_vector_alloc (nPar);
-	gsl_vector *solution = gsl_vector_alloc(nPar);
-
-	size_t igood = 0;
-	size_t iPar;
-	double az, el;
-	double sr = dataArray->detectors[0].getSamplerate();
-	for (size_t i =0; i< nDetectors; i++)
-		for (size_t j=0; j<nSamples; j++){
-			if (flags[i*nSamples+j]){
-				iPar = 0;
-				gsl_matrix_set(S,igood,iPar++, 1.0);
-				gsl_matrix_set(S,igood, iPar++, double(j)/sr);
-				az = gsl_vector_get(azVector,i*nSamples+j);
-				el = gsl_vector_get (elVector,i*nSamples+j);
-				gsl_matrix_set (S,igood, iPar++, az);
-				gsl_matrix_set (S, igood, iPar++, el);
-				gsl_matrix_set (S,igood, iPar++, az*az);
-				gsl_matrix_set (S,igood, iPar++, az*el);
-				gsl_matrix_set (S,igood, iPar++, el*el);
-				gsl_vector_set (d,igood, dataVector[i*nSamples+j]);
-				igood++;
-			}
-		}
-	gsl_blas_dgemm(CblasTrans,CblasNoTrans,1.0, S,S,0.0, SS);
-	gsl_blas_dgemv(CblasTrans, 1.0,S,d, 0.0, Std);
-	gsl_permutation *p = gsl_permutation_alloc(nPar);
-	int signum = 0;
-
-	gsl_linalg_LU_decomp(SS, p, &signum);
-	gsl_linalg_LU_solve(SS, p, Std, solution);
-	gsl_matrix_free (SS);
-	gsl_permutation_free(p);
-	gsl_matrix_free (S);
-
-	double res;
-	for (size_t i =0; i< nDetectors; i++)
-			for (size_t j=0; j<nSamples; j++){
-				iPar = 0;
-				gsl_vector_set(Std,iPar++, 1.0);
-				gsl_vector_set(Std, iPar++, double(j)/sr);
-				az = gsl_vector_get(azVector,i*nSamples+j);
-				el = gsl_vector_get (elVector,i*nSamples+j);
-				gsl_vector_set (Std, iPar++, az);
-				gsl_vector_set (Std, iPar++, el);
-				gsl_vector_set (Std, iPar++, az*az);
-				gsl_vector_set (Std, iPar++, az*el);
-				gsl_vector_set (Std, iPar++, el*el);
-				gsl_blas_ddot(Std,solution,&res);
-				dataVector[i*nSamples+j] -=res;
-			}
-	gsl_vector_free (Std);
-	gsl_vector_free(d);
-	gsl_vector_free (solution);
-
-	return true;
 }
 
 
@@ -625,6 +560,7 @@ void CleanBspline::removeLargeScaleResiduals (CleanBsplineDestriping method,doub
 	double *dataVector = NULL;
 	double *kVector = NULL;
 	double *flagVector = NULL;
+	double *flagVectorDist = NULL;
 	double *atmVector = NULL;
 	double *AzOffsets = new double [nDetectors];
 	double *ElOffsets = new double [nDetectors];
@@ -635,18 +571,16 @@ void CleanBspline::removeLargeScaleResiduals (CleanBsplineDestriping method,doub
 	for (size_t id = 0; id < nDetectors; id ++){
 		AzOffsets[id]=dataArray->detectors[di[id]].azOffset;
 		ElOffsets[id]=dataArray->detectors[di[id]].elOffset;
-		detSens[id] = 1.0/dataArray->detectors[di[id]].getSensitivity();
+		detSens[id] = dataArray->detectors[di[id]].getSensitivity()*1e-3; //Set value to Jy
 	}
 
 	double sampleRate = dataArray->detectors[di[0]].getSamplerate();
 
-	//if (method != SUBARRAY_SPLINE){
 		for(size_t k=0;k<nScans;k++){
 			currScan = k+1;
 			if (ap->getOrder() != 100)
 				if (!scanStatus[k])
 					continue;
-			//cout<<"CleanBspline("<<tid<<")::clean().High pass clean on  scan: "<<k <<" of "<<nScans-1<<endl;
 			si=telescope->scanIndex[0][k];
 			ei=telescope->scanIndex[1][k]+1;
 			nSamples = ei-si;
@@ -654,6 +588,7 @@ void CleanBspline::removeLargeScaleResiduals (CleanBsplineDestriping method,doub
 			dataVector = new double [nDetectors*nSamples];
 			kVector = new double [nDetectors*nSamples];
 			flagVector = new double [nDetectors*nSamples];
+			flagVectorDist = new double [nDetectors*nSamples];
 			atmVector = new double [nDetectors*nSamples];
 			azVector = gsl_vector_alloc(nDetectors*nSamples);
 			elVector = gsl_vector_alloc (nDetectors*nSamples);
@@ -666,40 +601,40 @@ void CleanBspline::removeLargeScaleResiduals (CleanBsplineDestriping method,doub
 					kVector[i*nSamples + j]=dataArray->detectors[di[i]].hKernel[si+j];
 					atmVector[i*nSamples + j]=dataArray->detectors[di[i]].atmTemplate[si+j];
 					flagVector[i*nSamples +j] = (double)dataArray->detectors[di[i]].hSampleFlags[si+j];
+					flagVectorDist[i*nSamples+j] = 1.;
 					if (flagVector[i*nSamples+j] ==0)
 						fullFlags[j] =0;
 					if (azVector!=NULL){
-						gsl_vector_set(azVector, i*nSamples+j,dataArray->detectors[di[i]].azElRaPhys[si+j]);
-						gsl_vector_set(elVector, i*nSamples+j,dataArray->detectors[di[i]].azElDecPhys[si+j]);
+						gsl_vector_set(azVector, i*nSamples+j,dataArray->detectors[di[i]].hAzPhys[si+j]);
+						gsl_vector_set(elVector, i*nSamples+j,dataArray->detectors[di[i]].hElPhys[si+j]);
 					}
-					double dist = sqrt (pow(dataArray->detectors[di[i]].azElRaPhys[si+j],2.0)+pow(dataArray->detectors[di[i]].azElDecPhys[si+j],2.0));
+					double dist = sqrt (pow(dataArray->detectors[di[i]].hRa[si+j],2.0)+pow(dataArray->detectors[di[i]].hDec[si+j],2.0));
+					dist *= 180.0/M_PI;
 					if (dist<this->bright)
-						flagVector[i*nSamples+j] = false;
+						flagVectorDist[i*nSamples+j] = 0;
+				}
+
+				double ngood=0;
+				detSens[i] = stddev(dataVector, flagVectorDist, i*nSamples,(i+1)*nSamples-1, &ngood);
+				if (detSens[i]!=detSens[i]){
+					cerr<<"Error, no  good data on Az/El template calculation on file "<<ap->getDataFile()<< "valid points are: " <<ngood<<endl;
+					exit(-1);
 				}
 			}
 
 			switch (method){
 			case STRIPE_PCA:
-				removeCorrelations2(dataVector,nDetectors,nSamples, correlate, AzOffsets,ElOffsets, kVector, flagVector);
+				pca (dataVector, flagVector, nSamples, nDetectors, ap->getCleanStripe());
 				break;
 			case STRIPE_FFT:
-				//cleanStripeFFT2(dataVector, kVector, nDetectors, nSamples,correlate, 0.00,sampleRate);
-				cleanStripeFFT3(dataVector, kVector, nDetectors, nSamples,correlate,sampleRate);
-				break;
-			case STRIPE_SCAN:
-				removeScanPattern(dataVector, azVector,elVector, flagVector, nDetectors, nSamples);
+				cleanStripeFFT(dataVector, kVector, nDetectors, nSamples,correlate,sampleRate);
 				break;
 			case AZEL_TEMPLATE:
-				//if (ap->getObservatory()=="LMT")
-					azelResidualLMT(dataVector,flagVector, nDetectors, nSamples, azVector, elVector,detSens);
-				//else
-					//azelResidual(dataVector,flagVector, nDetectors, nSamples, AzOffsets, ElOffsets,detSens);
+					azelResidualLMT(dataVector,flagVector,flagVectorDist, kVector, nDetectors, nSamples, azVector, elVector,detSens);
 				break;
-			case SUBARRAY_SPLINE:
-				splineResidual(dataVector, flagVector, nDetectors, nSamples, azVector, elVector, correlate);
-				break;
+			case STRIPE_NONE:
 			default:
-				cerr<<"Not a valid destriping method"<<endl;
+				cerr<<"CleanSpline("<<tid<<") Fatal Error: not a valid destriping method. Check you Analysis Parameter file. Program Terminated"<<endl;
 				exit(-1);
 
 			}
@@ -708,26 +643,24 @@ void CleanBspline::removeLargeScaleResiduals (CleanBsplineDestriping method,doub
 				for(size_t j=0; j<nSamples; j++){
 					dataArray->detectors[di[i]].hValues[si+j]=dataVector[i*nSamples +j];
 					dataArray->detectors[di[i]].hKernel[si+j]=kVector[i*nSamples +j];
+					dataArray->detectors[di[i]].hSampleFlags[si+j]=flagVector[i*nSamples+j];
 				}
 
 			delete [] dataVector;
 			delete [] kVector;
 			delete [] atmVector;
 			delete [] flagVector;
+			delete [] flagVectorDist;
 			gsl_vector_free(azVector);
 			gsl_vector_free (elVector);
 			azVector=NULL;
 			elVector= NULL;
 		}
-//	}else{
-//		cleanScans(CORRELATE, correlate);
-//	}
 
 	delete [] AzOffsets;
 	delete [] ElOffsets;
 	delete [] detSens;
 }
-
 
 
 void CleanBspline::createBaseMatrix(int nSamples, int nDetectors){
@@ -756,7 +689,7 @@ void CleanBspline::createBaseMatrix(int nSamples, int nDetectors){
 		}
 	}
 	nSpline = nbreaks + order -2;
-	//cerr<<"CleanBspline("<<tid<<"): Control Chunk is "<<controlChunk<< " Number of Splines: "<<nSpline<<endl;
+	cerr<<"CleanBspline("<<tid<<"): Control Chunk is "<<controlChunk<< " Number of Splines: "<<nSpline<<endl;
 
 	long dataLen = nSamples * nDetectors;
 	gsl_vector* tmpB = NULL;
@@ -824,6 +757,122 @@ void CleanBspline::createBaseMatrix(int nSamples, int nDetectors){
 	return;
 }
 
+
+void CleanBspline::createBaseMatrix(int nSamples, int nDetectors, int nCells, VecDoub azOff, VecDoub elOff){
+	double tol = 0.0;
+	if (baseMatrix != NULL){
+		if (nSamples == baseMatrixSamples && nDetectors == baseMatrixDetectors)
+			return;
+		else
+			this->destroyBaseMatrix();
+	}
+
+
+	int order = dataArray->getAp()->getOrder();
+	double controlChunk = dataArray->getAp()->getControlChunk();
+	double timeChunk = dataArray->getAp()->getTimeChunk();
+	int nbreaks =0;
+	int nSpline = 0;
+	cs *tmpbMatrix=NULL;
+	cs *tmpbMatrix_t=NULL;
+
+	if (controlChunk <= 0.0 || timeChunk <= 0.0){
+		nbreaks = nSamples +order +1;
+	}else{
+		nbreaks = round(timeChunk/controlChunk/this->resample);
+		if (nbreaks >= nSamples){
+			nbreaks = nSamples +order + 1;
+		}
+	}
+	nSpline = nbreaks + order -2;
+	//cerr<<"CleanBspline("<<tid<<"): Control Chunk is "<<controlChunk<< " Number of Splines: "<<nSpline<<endl;
+
+	long dataLen = nSamples * nDetectors;
+	gsl_vector* tmpB = NULL;
+	bsw = gsl_bspline_alloc(order, nbreaks);
+	if (bsw == NULL){
+		cerr<<"CleanBspline::createBaseMatrix():Cannot allocate B-spline working space. Imploding"<< endl;
+		exit(-1);
+	}
+	baseMatrixSamples = nSamples;
+	baseMatrixDetectors = nDetectors;
+	gsl_bspline_knots_uniform(0.0, (double)(baseMatrixSamples-1), bsw);
+	time = gsl_vector_alloc(baseMatrixSamples);
+	tmpB = gsl_vector_alloc(nSpline);
+	for (int i=0; i<baseMatrixSamples; i++)
+		gsl_vector_set(time, i, (double) i);
+	//Deal with book-keeping
+	double maxx, minx, maxy, miny, resx,resy;
+	int xi, yi;
+	maxmin(azOff,&maxx,&minx);
+	maxmin(elOff,&maxy,&miny);
+	resx = (maxx-minx)/nCells;
+	resy = (maxy-miny)/nCells;
+	size_t celli = pow(nCells,2);
+	VecInt bpos (nDetectors,0);
+
+	for (size_t ibolo = 0; ibolo< (size_t)nDetectors; ibolo++){
+		xi = floor((azOff[ibolo]-minx)/resx);
+		yi = floor((elOff[ibolo]-miny)/resy);
+		if (xi == nCells)
+			xi--;
+		if (yi == nCells)
+			yi--;
+		bpos[ibolo] = xi*nCells +yi;
+	}
+
+
+	tmpbMatrix = cs_spalloc(celli*nSpline, dataLen, celli*nSpline,1,1);
+	tmpbMatrix_t = cs_spalloc(dataLen, celli*nSpline,celli*nSpline,1,1);
+
+	int kstart = 0;
+	int kend = 0;
+	double c_sample=0.0;
+	for (long i=0; i<baseMatrixSamples; i++){
+		gsl_bspline_eval(gsl_vector_get(time,i), tmpB, bsw);
+		//gsl_matrix_set_col(tmpMatrix, i, tmpB);
+		kstart = -1;
+		kend = -1;
+		for (int k=0; k<nSpline; k++){
+			c_sample = gsl_vector_get(tmpB, k);
+			if (!finite(c_sample)){
+				cerr<<"Nan detected on BaseMatrix....Imploding"<<endl;
+				exit(-1);
+			}
+			if (kstart == -1 && abs(c_sample) > tol){
+				kstart = k;
+				continue;
+			}
+			if (kend ==-1 && kstart > -1 &&  abs(c_sample) <=tol )
+				kend = k;
+		}
+		if (kend == -1 && kstart != -1)
+			kend = nSpline;
+		for (long k=kstart; k<kend; k++){
+			c_sample = gsl_vector_get(tmpB, k);
+			if (c_sample == 0)
+				continue;
+			for (long j=0; j<nDetectors; j++){
+				cs_entry(tmpbMatrix, bpos[j]*nSpline + k, j*baseMatrixSamples + i , c_sample);
+				cs_entry(tmpbMatrix_t,j*baseMatrixSamples + i , bpos[j]*nSpline + k , c_sample);
+			}
+		}
+	}
+
+	gsl_vector_free(tmpB);
+	this->baseMatrix = cs_compress(tmpbMatrix_t);
+	this->baseMatrix_t = cs_compress(tmpbMatrix);
+	cs_spfree(tmpbMatrix_t);
+	cs_spfree(tmpbMatrix);
+
+	if (!this->baseMatrix || !this->baseMatrix_t){
+		cerr<<"CleanBspline(): Cannot allocate Bspline base matrix. Imploding"<<endl;
+		exit(-1);
+	}
+
+	return;
+}
+
 void CleanBspline::calibrate(){
 	if (!this->calibrated){
 		int nDetectors = dataArray->getNDetectors();
@@ -850,6 +899,7 @@ void CleanBspline::downSample(gsl_vector** out,double *data, bool *flags, long n
 		cerr<<"CleanBspline::downSample() Warning number of samples is not exactly divisible by downsampling rate. Fixing" <<endl;
 		addOne = 1;
 	}
+	cerr<<"Downsample data: "<< nSamples <<","<<downSample<<","<< addOne<<endl;
 	newSample = nSamples/downSample + addOne;
 	if (flags == NULL){
 		flags = new bool[nSamples];
@@ -889,376 +939,76 @@ void CleanBspline::destroyBaseMatrix(){
 	}
 }
 
-bool CleanBspline::removeCorrelations (double *dataVector, double *flagVector, size_t nDetectors, size_t nSamples, double corrFactor, double *azoffset, double *eloffset, gsl_vector *azVector, gsl_vector *elVector){
-	size_t totalSamples = nDetectors*nSamples;
-	VecDoub outputVector (totalSamples);
-	MatDoub corrMatrix (nDetectors,nDetectors,0.0);
-	MatDoub signMatrix (nDetectors, nDetectors, 0.0);
 
-	double dist;
-	double minDist = 0.0*1.25*60.0/2.0;
-	if (ap->getObservatory()=="LMT")
-		minDist /=3.0;
-	//Build correlation matrix
-	for (size_t i=0; i<nDetectors;i++){
-		corrMatrix[i][i] = 1.0;
-		signMatrix[i][i] = 1.0;
-		for (size_t j=i+1; j<nDetectors; j++){
-			corrMatrix[i][j] = flagCorrelation(&(dataVector[i*nSamples]), &(flagVector[i*nSamples]), \
-					&(dataVector[j*nSamples]), &(flagVector[j*nSamples]),\
-					nSamples);
-			dist = sqrt(pow(azoffset[i]-azoffset[j],2) + pow(eloffset[i]-eloffset[j],2));
-			if (corrMatrix[i][j] < corrFactor || dist < minDist)
-				corrMatrix[i][j]=0.0;
-			corrMatrix[j][i]=corrMatrix[i][j];
-			if (corrMatrix[i][j] >=0){
-				signMatrix[i][j] = 1.0;
-				signMatrix[j][i] = 1.0;
-			}else{
-				signMatrix[i][j] = signMatrix[j][i] = 1.0;
-			}
+bool CleanBspline::pca (double *dataVector, double *flags, size_t nSamples, size_t nDetectors, size_t neig2cut){
 
-		}
-	}
-	size_t nCorrBolo=0;
-	bool corrRemoved = false;
-	VecBool cleaned (nDetectors, false);
-	for (size_t i=0; i<nDetectors; i++){
-		nCorrBolo = 0;
-
-		for (size_t j=0; j<nDetectors; j++)
-			if (corrMatrix[i][j]!= 0  && cleaned[j] ==0)
-				nCorrBolo++;
-		//cout<<"Bolometer "<<i<< "has "<<nCorrBolo<<"correlations"<<endl;
-		if (nCorrBolo >=2){
-			corrRemoved = true;
-			double *curData = new double [nCorrBolo*nSamples];
-			bool *curFlags = new bool [nCorrBolo*nSamples];
-			gsl_vector *curAz = gsl_vector_alloc (nCorrBolo*nSamples);
-			gsl_vector *curEl = gsl_vector_alloc (nCorrBolo*nSamples);
-
-			VecInt boloIndex (nCorrBolo,-1);
-			double c0, c1;
-			boloIndex[0]=i;
-			size_t iIndex = 1;
-//			double icov = 0;
-			for (size_t ibolo = 0; ibolo<nDetectors; ibolo++)
-				if (ibolo != i && corrMatrix[i][ibolo] !=0)
-					boloIndex[iIndex++]=ibolo;
-
-			for (size_t ibolo = 0; ibolo<nCorrBolo; ibolo++){
-				linfit_flags(&dataVector[boloIndex[0]*nSamples],&flagVector[boloIndex[0]*nSamples] ,&dataVector[boloIndex[ibolo]*nSamples],&flagVector[boloIndex[ibolo]*nSamples] ,nSamples, &c0, &c1, false);
-				for (size_t iSample = 0; iSample<nSamples; iSample++){
-					curData[ibolo*nSamples+iSample]= (dataVector[boloIndex[ibolo]*nSamples + iSample]-c0)/c1;
-					curFlags[ibolo*nSamples+iSample] = (bool) flagVector[boloIndex[ibolo]*nSamples + iSample];
-					gsl_vector_set (curAz,ibolo*nSamples+iSample,gsl_vector_get(azVector,boloIndex[ibolo]*nSamples + iSample));
-					gsl_vector_set (curEl,ibolo*nSamples+iSample, gsl_vector_get(elVector,boloIndex[ibolo]*nSamples + iSample));
-				}
-			}
-//			writeVecOut ("idata.txt", curData, nCorrBolo*nSamples);
-//			writeVecOut ("iaz.txt", curAz->data, nCorrBolo*nSamples);
-//			writeVecOut ("iel.txt", curEl->data, nCorrBolo*nSamples);
-//			cout <<"Number of Correlated Bolometers: "<< nCorrBolo;
-
-			//double *atmTemplate = cottingham (curData, curAz, curEl, curFlags ,nCorrBolo, nSamples, cleanPixelSize);
-			VecDoub atmTemp (nSamples,0.0);
-			VecDoub count (nSamples, 0.0);
-			double f;
-			for (size_t i = 0; i< nCorrBolo; i++)
-				for (size_t j = 0; j<nSamples; j++){
-					f = curFlags[i*nSamples+j] ? 1.0 : 0.0;
-					atmTemp[j] += curData[i*nSamples+j]*f;
-					count[j] += f;
-				}
-			double badSample = 0.0;
-			for (size_t j = 0; j<nSamples; j++){
-				if (count[j] > 0.0)
-					atmTemp[j]/=count[j];
-				else{
-					badSample ++;
-					atmTemp[j]=0.0;
-				}
-
-			}
-			if (badSample > 0.0)
-				cout<<"Fraction of valid points"<<1.0-badSample/(double)nSamples<<endl;
-			//if (atmTemplate){
-				for (size_t k=0; k<nSamples; k++)
-					outputVector[boloIndex[0]*nSamples +k] = atmTemp[k];
-//				writeVecOut ("iAtmTemp.txt", atmTemplate, nSamples);
-			//	delete [] atmTemplate;
-//			}else{
-//				for (size_t k=0; k<nSamples; k++)
-//					outputVector[boloIndex[0]*nSamples +k] = 0.0;
-//			}
-
-			delete [] curData;
-			delete [] curFlags;
-			gsl_vector_free(curAz);
-			gsl_vector_free(curEl);
-
-		}else{
-			cleaned[i] = -1;
-			for (size_t k=0; k<nSamples; k++)
-				outputVector[i*nSamples+k]=0.0;
-		}
-
-
-	}
-
-	for (size_t i=0; i<totalSamples; i++)
-		dataVector[i]-=outputVector[i];
-
-	return corrRemoved;
-}
-
-
-bool CleanBspline::removeCorrelations2 (double *dataVector, size_t nDetectors, size_t nSamples, double corrFactor, double *azoffset, double *eloffset, double *kVector, double *flagsVector){
-
-	MatDoub corrMatrix (nDetectors,nDetectors,0.0);
-	MatDoub signMatrix (nDetectors, nDetectors, 0.0);
-	VecDoub stddevs (nDetectors);
-	double dist;
-	double mn;
-	double minDist = 1.0*60.0;
-
-	//writeVecOut("inputData.txt",dataVector, nSamples*nDetectors);
-	//Build correlation matrix
-	for (size_t i=0; i<nDetectors;i++){
-		corrMatrix[i][i] = 1.0;
-		signMatrix[i][i] = 1.0;
-		mn = mean(&dataVector[i*nSamples], nSamples);
-		stddevs[i] = stddev(&dataVector[i*nSamples], nSamples, mn);
-		for (size_t j=i+1; j<nDetectors; j++){
-			corrMatrix[i][j] = flagCorrelation(&dataVector[i*nSamples], &flagsVector[i*nSamples], &dataVector[j*nSamples], &flagsVector[j*nSamples],nSamples);
-			dist = sqrt(pow(azoffset[i]-azoffset[j],2) + pow(eloffset[i]-eloffset[j],2));
-			if (round(corrMatrix[i][j]*100.0)/100.0 < corrFactor || dist < minDist)
-				corrMatrix[i][j]=0.0;
-			corrMatrix[j][i]=corrMatrix[i][j];// = abs(corrMatrix[i][j]);
-			if (corrMatrix[i][j] >=0){
-				signMatrix[i][j] = 1.0;
-				signMatrix[j][i] = 1.0;
-			}else{
-				signMatrix[i][j] = signMatrix[j][i] = 1.0;
-			}
-
-		}
-	}
-//	writeMatOut("corrMatrix.txt", corrMatrix);
-//	char buff [500];
-	size_t nCorrBolo=0;
-	bool corrRemoved = false;
-	double *cleanedData = new double [nDetectors*nSamples];
-	double *cleanedKernel = new double [nDetectors*nSamples];
-	VecBool isCleaned (nDetectors, false);
-	VecBool dummyFlags(nSamples,true);
-	for (size_t i=0; i<nDetectors; i++){
-		nCorrBolo = 0;
-		for (size_t j=0; j<nDetectors; j++)
-			if (corrMatrix[i][j]!= 0)
-				nCorrBolo++;
-
-		if (nCorrBolo >1){
-			isCleaned[i] = true;
-			corrRemoved = true;
-			VecInt boloIndex (nCorrBolo,-1);
-			VecDoub coeff(nCorrBolo,2);
-			boloIndex[0]=i;
-			size_t iIndex = 1;
-			for (size_t ibolo = 0; ibolo<nDetectors; ibolo++)
-				if (ibolo != i && corrMatrix[i][ibolo] !=0)
-					boloIndex[iIndex++]=ibolo;
-
-			gsl_matrix *det = gsl_matrix_alloc (nCorrBolo, nSamples);
-			gsl_matrix *ket = gsl_matrix_alloc(nCorrBolo, nSamples);
-			gsl_matrix *fl = gsl_matrix_alloc (nCorrBolo, nSamples);
-			for (size_t ibolo = 0; ibolo< nCorrBolo; ibolo++)
-				for (size_t isample=0; isample<nSamples; isample++){
-					gsl_matrix_set(det,ibolo, isample, /*signMatrix[boloIndex[0]][boloIndex[ibolo]] * */dataVector[boloIndex[ibolo]*nSamples+isample]);
-					gsl_matrix_set(ket,ibolo, isample, /*signMatrix[boloIndex[0]][boloIndex[ibolo]]* */dataVector[boloIndex[ibolo]*nSamples+isample]);
-					gsl_matrix_set (fl, ibolo, isample , flagsVector[boloIndex[ibolo]*nSamples+isample]);
-				}
-
-			gsl_matrix *denom = gsl_matrix_alloc(nCorrBolo,nCorrBolo);
-			gsl_blas_dgemm(CblasNoTrans,CblasTrans,1.,fl,fl,0.,denom);
-			gsl_matrix_add_constant(denom,-1.);
-
-			gsl_matrix_mul_elements (det,fl);
-			gsl_matrix_mul_elements (ket,fl);
-			gsl_matrix *pcaCorr = gsl_matrix_alloc (nCorrBolo, nCorrBolo);
-			gsl_blas_dgemm(CblasNoTrans,CblasTrans,1.,det,det,0.,pcaCorr);
-			gsl_matrix_div_elements(pcaCorr,denom);
-			gsl_matrix_free(fl);
-			gsl_matrix_free(denom);
-			gsl_eigen_symmv_workspace* w=gsl_eigen_symmv_alloc(nCorrBolo);
-			gsl_vector* eVals = gsl_vector_alloc(nCorrBolo);
-			gsl_matrix* eVecs = gsl_matrix_alloc(nCorrBolo,nCorrBolo);
-			gsl_eigen_symmv(pcaCorr,eVals,eVecs,w);
-			gsl_eigen_symmv_sort(eVals,eVecs, GSL_EIGEN_SORT_ABS_DESC);
-			gsl_eigen_symmv_free(w);
-//			gsl_matrix_free(covMatrix);
-			gsl_matrix_free (pcaCorr);
-
-
-
-			gsl_matrix* eFunc = gsl_matrix_alloc(nCorrBolo,nSamples);
-			gsl_blas_dgemm(CblasTrans,CblasNoTrans,1.,eVecs,det,0.,eFunc);
-			gsl_matrix* kFunc = gsl_matrix_alloc (nCorrBolo, nSamples);
-			gsl_blas_dgemm(CblasTrans,CblasNoTrans,1.,eVecs,ket,0.,kFunc);
-
-			size_t n2cut = 2;
-			if (n2cut >= nCorrBolo){
-				cout<<"Wrong number of eigenvectors to cut..."<<n2cut<<","<<nCorrBolo<<endl;
-				n2cut = 1;
-			}
-			for (size_t ibolo = 0.0; ibolo< n2cut; ibolo++)
-				for (size_t isample=0; isample<nSamples; isample++){
-					gsl_matrix_set (eFunc, ibolo, isample, 0.0);
-					gsl_matrix_set (kFunc, ibolo, isample, 0.0);
-				}
-			gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.,eVecs,eFunc,0.,det);
-			gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.,eVecs,kFunc,0.,ket);
-			gsl_matrix_free(eFunc);
-			gsl_matrix_free(kFunc);
-			gsl_vector_free(eVals);
-			gsl_matrix_free (eVecs);
-			for (size_t k=0; k<nSamples; k++){
-				cleanedData [i*nSamples+k] = gsl_matrix_get (det,0,k);
-				cleanedKernel [i*nSamples+k] = gsl_matrix_get (ket,0,k);
-			}
-//			sprintf(buff,"outData_%03lu.txt", i);
-//			writeVecOut(buff, &cleanedData [i*nSamples], nSamples);
-			gsl_matrix_free (det);
-			gsl_matrix_free (ket);
-		}
-//		else{
-//			cout<<"Bolometer "<<i<< "has no correlations: "<<endl;
-//		}
-	}
-//	static size_t quit =0;
-//	if (quit==2)
-//		exit(-1);
-//	quit++;
-	for (size_t i=0; i< nDetectors; i++)
-		for (size_t j=0; j< nSamples; j++)
-			if (isCleaned[i]){
-				dataVector [i*nSamples+j] = cleanedData[i*nSamples+j];
-				kVector [i*nSamples+j] = cleanedKernel[i*nSamples+j];
-			}
-	delete [] cleanedData;
-	delete [] cleanedKernel;
-	return corrRemoved;
-}
-
-bool CleanBspline::stripePCA(double *dataVector, double *kernelVector, double *flags, size_t nDetectors, size_t nSamples, size_t neigToCut, bool adaptive){
-
-	gsl_matrix *dataMatrix = gsl_matrix_alloc (nDetectors, nSamples);
-	gsl_matrix *kernelMatrix = gsl_matrix_alloc (nDetectors, nSamples);
-	gsl_matrix *flaggedDataMatrix = gsl_matrix_alloc(nDetectors, nSamples);
-	gsl_matrix *corrMatrix = gsl_matrix_alloc(nDetectors, nDetectors);
-	double sum = 0;
-
-	for (size_t i = 0; i<nDetectors; i++)
-		for (size_t j=0; j<nSamples; j++){
-			gsl_matrix_set(dataMatrix, i,j, dataVector[i*nSamples+j]);
-			gsl_matrix_set (kernelMatrix, i,j, kernelVector[i*nSamples+j]);
-			gsl_matrix_set (flaggedDataMatrix, i,j, dataVector[i*nSamples+j]* flags[i*nSamples+j]);
-			sum += flags[i*nSamples+j];
-		}
-	double delta = double (sum)/double(nDetectors*nSamples);
-	gsl_blas_dgemm(CblasNoTrans, CblasTrans,1.0, flaggedDataMatrix, flaggedDataMatrix, 0.0, corrMatrix);
-	gsl_matrix_free (flaggedDataMatrix);
-
-	//This is a correction on covariance matrix estimator when missed data (flagged samples)
-	//See arXiv 1201.2577v5
-	double factor1 = (1.0/delta -1.0/pow(delta,2));
-	double factor2 = 1.0/pow(delta,2);
-	double entryij;
-	for (size_t i = 0; i< nDetectors; i++)
-		for (size_t j = 0; j< nDetectors; j++){
-			entryij = gsl_matrix_get(corrMatrix, i,j);
-			if (i==j)
-				entryij = factor1*entryij + factor2*entryij;
-			else
-				entryij *= factor2;
-			gsl_matrix_set (corrMatrix, i,j, entryij);
-		}
-
+	gsl_matrix *det = gsl_matrix_alloc (nDetectors, nSamples);
+	//gsl_matrix *ket = gsl_matrix_alloc(nDetectors, nSamples);
+	gsl_matrix *fl = gsl_matrix_alloc (nDetectors, nSamples);
+	gsl_matrix *denom = gsl_matrix_alloc(nDetectors,nDetectors);
+	gsl_matrix *pcaCorr = gsl_matrix_alloc(nDetectors,nDetectors);
 	gsl_eigen_symmv_workspace* w=gsl_eigen_symmv_alloc(nDetectors);
 	gsl_vector* eVals = gsl_vector_alloc(nDetectors);
 	gsl_matrix* eVecs = gsl_matrix_alloc(nDetectors,nDetectors);
-	gsl_eigen_symmv(corrMatrix,eVals,eVecs,w);
-	gsl_eigen_symmv_sort(eVals,eVecs, GSL_EIGEN_SORT_VAL_DESC);
-	gsl_eigen_symmv_free(w);
-	gsl_matrix_free(corrMatrix);
-
-
-
 	gsl_matrix* eFunc = gsl_matrix_alloc(nDetectors,nSamples);
-	gsl_blas_dgemm(CblasTrans,CblasNoTrans,1.,eVecs,dataMatrix,0.,eFunc);
-	gsl_matrix* kFunc = gsl_matrix_alloc (nDetectors, nSamples);
-	gsl_blas_dgemm(CblasTrans,CblasNoTrans,1.,eVecs,kernelMatrix,0.,kFunc);
+	double c1,c0;
+	VecDoub flagt(nSamples);
+	VecDoub datat(nSamples);
 
-	//double damping = 0.0;
+	//Copy data
 
-	if (adaptive){
-		double medianVals, stdvals;
-			robustMedian(eVals->data, nDetectors, neigToCut, &medianVals, &stdvals);
-			double thresh = medianVals + neigToCut*stdvals;
-		size_t nCut = 0;
-		for (size_t ibolo = 0.0; ibolo< nDetectors; ibolo++)
-			if (gsl_vector_get (eVals,ibolo) > thresh){
-				nCut++;
-				for (size_t isample=0; isample<nSamples; isample++){
-					gsl_matrix_set (eFunc, ibolo, isample, 1.0/sqrt(abs(gsl_vector_get(eVals,ibolo)))*gsl_matrix_get (eFunc, ibolo,isample));
-					gsl_matrix_set (kFunc, ibolo, isample, 1.0/sqrt(abs(gsl_vector_get(eVals,ibolo)))*gsl_matrix_get (kFunc, ibolo,isample));
-				}
-			}
-		cout<<"CleanBspline("<<tid<<"): Removing "<< nCut << " eigenvectors"<<endl;
-	}else{
-		for (size_t ibolo = 0.0; ibolo< neigToCut; ibolo++)
-			for (size_t isample=0; isample<nSamples; isample++){
-				gsl_matrix_set (eFunc, ibolo, isample, 0.0);
-				gsl_matrix_set (kFunc, ibolo, isample, 0.0);
-			}
+	for (size_t ibolo = 0; ibolo< nDetectors; ibolo++)
+		for (size_t isample=0; isample<nSamples; isample++){
+			gsl_matrix_set (det, ibolo, isample, dataVector[ibolo*nSamples+isample]);
+			gsl_matrix_set (fl, ibolo, isample, flags[ibolo*nSamples+isample]);
+		}
+
+
+	gsl_blas_dgemm(CblasNoTrans,CblasTrans,1.,fl,fl,0.,denom);
+	gsl_matrix_add_constant(denom,-1.);
+	gsl_matrix_mul_elements (det,fl);
+	gsl_blas_dgemm(CblasNoTrans,CblasTrans,1.,det,det,0.,pcaCorr);
+	gsl_matrix_div_elements(pcaCorr,denom);
+
+	gsl_matrix_free (fl);
+
+	gsl_eigen_symmv(pcaCorr,eVals,eVecs,w);
+	gsl_eigen_symmv_sort(eVals,eVecs, GSL_EIGEN_SORT_ABS_DESC);
+	gsl_blas_dgemm(CblasTrans,CblasNoTrans,1.,eVecs,det,0.,eFunc);
+
+	for (size_t ibolo = neig2cut; ibolo< nDetectors; ibolo++)
+		for (size_t isample=0; isample<nSamples; isample++){
+			gsl_matrix_set (eFunc, ibolo, isample, 0.0);
+			//gsl_matrix_set (kFunc, ibolo, isample, 0.0);
 	}
-	gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.,eVecs,eFunc,0.,dataMatrix);
-	gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.,eVecs,kFunc,0.,kernelMatrix);
-	gsl_matrix_free(eFunc);
-	gsl_matrix_free(kFunc);
+
+	gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.,eVecs,eFunc,0.,det);
+
+	for (size_t ibolo = 0; ibolo< nDetectors; ibolo++){
+		for (size_t isample=0; isample<nSamples; isample++)
+			datat[isample]=gsl_matrix_get(det,ibolo,isample);
+		linfit_flags(&dataVector[ibolo*nSamples], &flags[ibolo*nSamples], &datat[0], &flags[ibolo*nSamples], nSamples, &c0, &c1, USEMPFIT);
+		for (size_t isample=0; isample<nSamples; isample++)
+			dataVector[ibolo*nSamples+isample]-= datat[isample]/c1;
+	}
+	gsl_matrix_free (det);
+	gsl_eigen_symmv_free(w);
+	gsl_matrix_free(pcaCorr);
+	gsl_matrix_free (denom);
 	gsl_vector_free(eVals);
 	gsl_matrix_free (eVecs);
-	for (size_t i=0; i<nDetectors; i++)
-		for (size_t k=0; k<nSamples; k++){
-			dataVector [i*nSamples+k] = gsl_matrix_get (dataMatrix,i,k);
-			kernelVector [i*nSamples+k] = gsl_matrix_get (kernelMatrix,i,k);
-		}
-	gsl_matrix_free (dataMatrix);
-	gsl_matrix_free (kernelMatrix);
+	gsl_matrix_free(eFunc);
 
 	return true;
-
 }
-
 
 
 MatDoub CleanBspline::linearGainCorrection(double *dataVector, size_t nDetectors, size_t nSamples, double *fakeAtm){
 
-	//	double *average = new double [nSamples];
-	//	VecDoub ithSample (nDetectors);
-
-	//double relGain[nDetectors];
-	//double relOffset[nDetectors];
 
 	MatDoub relCoeff(2,nDetectors);    //[0] is relGain, [1] relOffset
 	double cv0,cv1,cv2, chisq;
 
-
-	//	for (size_t i=0; i<nSamples; i++){
-	//		for (size_t j=0; j<nDetectors; j++)
-	//			ithSample[j]=dataVector[j*nSamples + i];
-	//		average[i] = gsl_stats_mean(ithSample.getData(),1,nDetectors);
-	//	}
 
 	for (size_t i=0; i<nDetectors; i++){
 		gsl_fit_linear(&dataVector[0],1,&(dataVector[i*nSamples]),1,nSamples,&(relCoeff[1][i]),&(relCoeff[0][i]),&cv0,&cv1,&cv2,&chisq);
@@ -1270,7 +1020,6 @@ MatDoub CleanBspline::linearGainCorrection(double *dataVector, size_t nDetectors
 			if (fakeAtm)
 				fakeAtm[i*nSamples+j]= (fakeAtm[i*nSamples+j]-relCoeff[1][i])/relCoeff[0][i];
 		}
-	//delete [] average;
 
 	return relCoeff;
 }
@@ -1282,15 +1031,8 @@ MatDoub CleanBspline::linearGainCorrection(double *dataVector, size_t nDetectors
 
 
 bool CleanBspline::fixFlags(double *dataVector, bool *flagsVector, int nDetectors, long nSamples){
-	//  long prev=0;
-	//  long next=0;
-	//  double m=0;
-	//  double data1=0.0;
-	//  double data2=0.0;
-	//  double value = 0.0;
-	//  long fpos=0.0;
-    (void) dataVector;
-    double sum = 0.0;
+
+	double sum = 0.0;
 	VecDoub sumPerDetector(nDetectors,0.0);
 	//Check flag vector, if more than 50% of the data is flagged as invalid then dismiss the whole scan
 	for (int i=0; i<nDetectors; i++)
@@ -1301,46 +1043,6 @@ bool CleanBspline::fixFlags(double *dataVector, bool *flagsVector, int nDetector
 	if (sum <= 0.5*(double)nDetectors*(double)nSamples)
 		return false;
 
-//	if (sum == (double)nDetectors*(double)nSamples)
-//		return true;
-////	Now iterate in vector data to remove bad flags
-//	VecDoub time (nSamples);
-//	double iInter;
-////	writeVecOut ("dVector.txt", dataVector, nSamples*nDetectors);
-//	gsl_error_handler_t *hn =  gsl_set_error_handler_off ();
-//	for (long j=0; j<nSamples;j++)
-//		time[j]=j;
-//	for (int i = 0; i<nDetectors; i++){
-//		if (sumPerDetector[i] == nSamples)
-//			continue;
-//		VecDoub interpData (sumPerDetector[i]);
-//		VecDoub interpTime (sumPerDetector[i]);
-//		long ix = 0;
-//		for (long j=0; j<nSamples;j++){
-//			if (flagsVector[i*nSamples+j]){
-//				interpData[ix]=dataVector[i*nSamples+j];
-//				interpTime[ix++]= time[j];
-//			}
-//		}
-//	    gsl_interp_accel *acc = gsl_interp_accel_alloc ();
-//	    gsl_spline *spline = gsl_spline_alloc (gsl_interp_cspline, sumPerDetector[i]);
-//	    gsl_spline_init (spline, &interpTime[0], &interpData[0], sumPerDetector[i]);
-//
-//	    for (long j=0; j<nSamples;j++){
-//	    			if (!flagsVector[i*nSamples+j]){
-//	    				iInter  = gsl_spline_eval (spline, time[j], acc);
-//	    				if (!gsl_finite(iInter))
-//	    					return false;
-//	    				dataVector[i*nSamples+j]=iInter;
-//	    			}
-//	    }
-//	    gsl_spline_free (spline);
-//	    gsl_interp_accel_free (acc);
-//
-//	}
-//	gsl_set_error_handler(hn);
-//	    writeVecOut ("fVector.txt", dataVector, nSamples*nDetectors);
-//	    exit(-1);
 	return true;
 }
 
@@ -1382,9 +1084,7 @@ cs* CleanBspline::getPMatrix(gsl_vector *ra, gsl_vector *dec, double pixelSize){
 		cerr<<"CleanBspline(): Fatal Error, no pixels in pointing matrix: "<<this->ap->getMapFile()<<endl;
 		exit(-1);
 	}
-	//cerr <<"Creating Ponting Matrix of Nsamples: "<< dataLen<< " x Npixels"<<tPixels <<endl;
-	//cerr <<"Ra (max,min) : ("<<maxRa<<","<<minRa<<") Dec (max,min) : ("<<maxDec<<","<<minDec<<")" <<endl;
-	//cerr <<"Pixel Size: "<< pixelSize<<endl;
+
 	usedPixels = new int[tPixels];
 	rowPos = new long[dataLen];
 	colPos = new long [dataLen];
@@ -1469,8 +1169,18 @@ void CleanBspline::subtractTemplate(double* detector, size_t nSamples,	double* a
 		double *xTemp = new double [oSamples];
 		double *iValues = new double [nSamples];
 
-		for (size_t i=0; i<oSamples; i++)
+		for (size_t i=0; i<oSamples; i++){
+			if (round(i*increment)>=nSamples){
+				cerr<<"bad interpolation value"<<endl;
+				exit(-1);
+			}
 			xTemp[i] = round(i*increment);
+		}
+
+		if (xTemp[oSamples-1] != nSamples-1){
+			cerr<<"bad interpolation value"<<endl;
+			exit(-1);
+		}
 		gsl_spline_init (spline, xTemp, aTemplate, oSamples);
 
 		for (size_t i=0; i<nSamples; i++){
@@ -1494,66 +1204,7 @@ void CleanBspline::subtractTemplate(double* detector, size_t nSamples,	double* a
 }
 
 
-void CleanBspline::cleanStripeFFT2(double *data, double *kernel, int nDetectors, long nSamples, double cutOff, double cutLow, double sampleRate){
-    (void) cutLow;
-	double  *tmp = new double [nSamples];
-	double  *ktmp = new double [nSamples];
-	double  *freq = new double [nSamples];
-
-	gsl_fft_real_wavetable * real = gsl_fft_real_wavetable_alloc (nSamples);
-	gsl_fft_real_workspace * work = gsl_fft_real_workspace_alloc (nSamples);
-	gsl_fft_halfcomplex_wavetable * hc = gsl_fft_halfcomplex_wavetable_alloc (nSamples);
-
-	double maxf = 0.5*sampleRate;
-
-	//Generate frequencies
-	freq[0]= 0.0;
-	for (long j=1; j<nSamples-1; (j+=2) ){
-		freq[j] = freq[j+1] =  double(j)/(2.0*double(nSamples))*sampleRate;
-	}
-
-	if (nSamples % 2 == 0)
-		freq[nSamples-1] = maxf;
-	else
-		freq[nSamples-1]= freq[nSamples-2] = maxf;
-
-//	double factor [nSamples];
-//	double spectrum [nSamples];
-
-
-	for (int i = 0; i<nDetectors; i++){
-		for (long j=0; j<nSamples; j++){
-			tmp[j] = data [i*nSamples +j];
-			ktmp[j] = kernel [i*nSamples +j];
-		}
-		gsl_fft_real_transform(tmp,1, nSamples,real,work);
-		gsl_fft_real_transform(ktmp,1, nSamples,real,work);
-
-		tmp[0]=0.0;
-		ktmp[0]=0.0;
-		for (long j=1; j<nSamples; j++){
-			tmp[j] *= sqrt (1.0/ (1.0+ pow(cutOff/freq[j],10.0)));
-			ktmp[j] *= sqrt (1.0/ (1.0+ pow(cutOff/freq[j],10.0)));
-		}
-
-		gsl_fft_halfcomplex_inverse (tmp, 1, nSamples, hc, work);
-		gsl_fft_halfcomplex_inverse (ktmp, 1, nSamples, hc, work);
-		for (long j=0; j<nSamples; j++){
-			data[i*nSamples +j] =tmp[j];
-			kernel[i*nSamples+j] =ktmp[j];
-		}
-	}
-
-	gsl_fft_real_wavetable_free(real);
-	gsl_fft_halfcomplex_wavetable_free (hc);
-	gsl_fft_real_workspace_free(work);
-	delete [] tmp;
-	delete [] ktmp;
-	delete [] freq;
-}
-
-
-void CleanBspline::cleanStripeFFT3(double *data, double *kernel, size_t nDetectors, size_t nSamples, double cutOff, double sampleRate){
+void CleanBspline::cleanStripeFFT(double *data, double *kernel, size_t nDetectors, size_t nSamples, double cutOff, double sampleRate){
 
   size_t newSamples = size_t(floor(pow(2,ceil(log(nSamples)/log(2)))));
   size_t pad = (newSamples-nSamples)/ 2;
@@ -1612,106 +1263,239 @@ void CleanBspline::cleanStripeFFT3(double *data, double *kernel, size_t nDetecto
   }
 
 }
+//
+//void CleanBspline::splineResidual (double *data, double *flags, size_t nDetectors, size_t nSamples, gsl_vector  *azVector, gsl_vector  *elVector, double correlate){
+//	VecDoub correlation (nDetectors);
+//	VecDoub signs (nDetectors);
+//	VecBool bflags (nDetectors*nSamples, true);
+//	VecDoub stddevs (nDetectors);
+//	double minCor = ap->getCleanStripe();
+//	double iCor, maxCor;
+//	size_t maxIt =100, curIt = 0;
+//	size_t indexMaxStd=0;
+//	double maxStd = 0., std;
+//	double increment=1.;
+//	size_t rSamples=nSamples;
+//	size_t index;
+//
+//
+//	if (resample > 1){
+//		long nnSamples = long(round(nSamples/resample));
+//		increment = double(nSamples-1)/double(nnSamples-1);
+//		rSamples =nnSamples;
+//	}
+//
+//	VecDoub rdata (nDetectors*rSamples);
+//	VecBool rflags (nDetectors*rSamples);
+//	gsl_vector *rAz = gsl_vector_alloc (nDetectors*rSamples);
+//	gsl_vector *rEl = gsl_vector_alloc (nDetectors*rSamples);
+//
+//	do{
+//		//Calculate maximum std bolomter
+//
+//		maxStd = 0.;
+//		maxCor = 0.0;
+//		for (size_t ibolo = 0; ibolo<nDetectors; ibolo++){
+//			stddevs[ibolo] = stddev(data, flags,ibolo*nSamples, (ibolo+1)*nSamples);
+//		}
+//
+//		maxStd = median(stddevs);
+//
+//		for (size_t ibolo = 0; ibolo<nDetectors; ibolo++){
+//			if (maxStd == stddevs[ibolo]){
+//				indexMaxStd = ibolo;
+//				break;
+//			}
+//		}
+//
+//		for (size_t ibolo = 0; ibolo<nDetectors; ibolo++){
+//			 iCor = flagCorrelation(&data[ibolo*nSamples], &flags[ibolo*nSamples], &data[indexMaxStd*nSamples], &flags[indexMaxStd*nSamples],nSamples);
+//			 signs[ibolo] = iCor >= 0?1:-1;
+//			 if (ibolo != indexMaxStd && iCor >maxCor){
+//				 maxCor = iCor;
+//			 }
+//		}
+//		cout<<"CleanBspline::splineResidual("<<tid<<"). Maximum correlation on iteration "<<curIt<< " is: "<<maxCor<<endl;
+//		if (maxCor < minCor)
+//			break;
+//
+//		for (size_t jbolo = 0; jbolo < nDetectors; jbolo++){
+//			for (size_t jSample = 0; jSample < rSamples; jSample++){
+//				index = long(round(jSample*increment));
+//				rdata[jbolo*rSamples+jSample] = signs[jbolo]* data [jbolo*nSamples+index];
+//				rflags [jbolo*rSamples+jSample] = (bool) flags [jbolo*nSamples+index];
+//				gsl_vector_set (rAz,jbolo*rSamples+jSample,gsl_vector_get(azVector,jbolo*nSamples+index));
+//				gsl_vector_set (rEl, jbolo*rSamples+jSample, gsl_vector_get ( elVector ,jbolo*nSamples+index));
+//			}
+//		}
+//
+//		//writeVecOut("rData.txt", &rdata[0], nDetectors*rSamples );
+//
+//		double *tmplt = cottingham(&rdata[0], rAz, rEl, &rflags[0], nDetectors, rSamples, this->ap->cleanPixelSize, (int)indexMaxStd);
+//
+//		//writeVecOut("lData.txt", &rdata[0], nDetectors*rSamples );
+//		//writeVecOut("sTemplate.txt", tmplt, rSamples*nDetectors);
+//
+//		//exit(-1);
+//
+//
+//		for (size_t ibolo = 0; ibolo<nDetectors; ibolo++){
+//			subtractTemplate (&data[ibolo*nSamples], nSamples, &tmplt[ibolo*nSamples], rSamples, increment, NULL, true);
+//			for (size_t jSample = 0; jSample < rSamples; jSample++){
+//				 data [ibolo*nSamples+jSample] *= signs[ibolo];
+//			}
+//		}
+//
+//	}while (++curIt <maxIt);
+//
+//	gsl_vector_free(rAz);
+//	gsl_vector_free(rEl);
+//
+////	for (size_t i=0; i<nDetectors;i++){
+////		corrMatrix[i][i] = 1.0;
+////		for (size_t j=i+1; j<nDetectors; j++){
+////			corrMatrix[i][j] = flagCorrelation(&data[i*nSamples], &flags[i*nSamples], &data[j*nSamples], &flags[j*nSamples],nSamples);
+////			dist = sqrt(pow(gsl_vector_get(azVector,i*nSamples)-gsl_vector_get(azVector,j*nSamples),2) + pow(gsl_vector_get(elVector,i*nSamples)-gsl_vector_get(elVector,j*nSamples),2));
+////			if (round(corrMatrix[i][j]*100.0)/100.0 < correlate || dist < mindist)
+////				corrMatrix[i][j]=0.0;
+////			corrMatrix[j][i]=corrMatrix[i][j];// = abs(corrMatrix[i][j]);
+////		}
+////	}
+////	MatDoub outData (nDetectors, nSamples, 0.0);
+////	VecBool isCleaned (nDetectors, false);
+////
+////	size_t oSamples=nSamples;
+////
+////	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
+////		//Get the number of correlated bolometers
+////		size_t nBoloCorr = 0;
+////		for (size_t jbolo = 0; jbolo < nDetectors; jbolo++)
+////			if (corrMatrix [ibolo][jbolo]> 0.0)
+////				nBoloCorr++;
+////		//cerr<<"Number of correlated bolometers"<< ibolo << "->"<< nBoloCorr<<endl;
+////		if (nBoloCorr >= 2){
+////
+////			double increment = 1.0;
+////			size_t index;
+////
+////
+////			if (resample > 1){
+////				long nnSamples = long(round(oSamples/resample));
+////				increment = double(oSamples-1)/double(nnSamples-1);
+////				nSamples =nnSamples;
+////			}
+////
+////			size_t dataLen = nBoloCorr*nSamples;
+////
+////			size_t boloIndex [nBoloCorr];
+////			boloIndex[0] = ibolo;
+////			size_t curBolo = 1;
+////			for (size_t jbolo = 0; jbolo < nDetectors; jbolo++)
+////				if (corrMatrix[ibolo][jbolo] > 0.0 && ibolo != jbolo){
+////					boloIndex[curBolo++]= jbolo;
+////					//cerr <<jbolo<<endl;
+////				}
+////			double *cBoloData = new double [dataLen];
+////			bool *cFlags = new bool [dataLen];
+////			gsl_vector *cAzVector = gsl_vector_alloc(dataLen);
+////			gsl_vector *cElVector = gsl_vector_alloc(dataLen);
+////			//copy data
+////			for (size_t jbolo = 0; jbolo < nBoloCorr; jbolo++){
+////				for (size_t jSample = 0; jSample < nSamples; jSample++){
+////					index = long(round(jSample*increment));
+////					cBoloData[jbolo*nSamples+jSample] = data [boloIndex[jbolo]*oSamples+index];
+////					cFlags [jbolo*nSamples+jSample] = flags [boloIndex[jbolo]*oSamples+index];
+////					gsl_vector_set (cAzVector,jbolo*nSamples+jSample,gsl_vector_get(azVector,boloIndex[jbolo]*oSamples+index));
+////					gsl_vector_set (cElVector, jbolo*nSamples+jSample, gsl_vector_get ( elVector ,boloIndex[jbolo]*oSamples+index));
+////				}
+////			}
+////			//writeVecOut ("osData", data, nDetectors*nSamples);
+////			//writeVecOut("sData.txt", cBoloData, nBoloCorr*nSamples);
+////			double *tmplt = cottingham(cBoloData, cAzVector, cElVector, cFlags, nBoloCorr, nSamples, this->ap->cleanPixelSize, 0);
+////
+////
+////			//writeVecOut("sTemplate.txt", tmplt, nBoloCorr*nSamples);
+////			//exit(-1);
+////
+////			subtractTemplate (&outData[ibolo][0], oSamples, &tmplt[0], nSamples, increment, NULL, true);
+////			//for (size_t iSample = 0; iSample<nSamples; iSample++)
+////				//outData[ibolo][iSample] = tmplt [iSample];
+////			delete [] tmplt;
+////			delete [] cFlags;
+////			delete [] cBoloData;
+////			gsl_vector_free (cAzVector);
+////			gsl_vector_free (cElVector);
+////			isCleaned[ibolo]=true;
+////
+////		}
+////	}
+////
+////	nSamples = oSamples;
+////	for (size_t ibolo= 0; ibolo< nDetectors; ibolo++)
+////		if (isCleaned[ibolo])
+////			for (size_t jSample = 0; jSample<nSamples; jSample++)
+////				data[ibolo*nSamples+jSample] -= outData[ibolo][jSample];
+//}
+//
+//
+//
+//void CleanBspline::splineIndividual (double *data, double *flags, size_t nDetectors, size_t nSamples, size_t nbreaks)
+//{
+//
+//    size_t order =4;
+//    size_t nSpline = nbreaks + order -2;
+//    //cerr<<"CleanBspline("<<tid<<"): Control Chunk is "<<controlChunk<< " Number of Splines: "<<nSpline<<endl;
+//
+//    gsl_bspline_workspace *bsw = gsl_bspline_alloc(order, nbreaks);
+//    if (bsw == NULL){
+//        cerr<<"CleanBspline::splineIndividual():Cannot allocate B-spline working space. Imploding"<< endl;
+//        exit(-1);
+//    }
+//    gsl_matrix *baseMatrix = gsl_matrix_alloc(nSamples, nSpline);
+//    gsl_bspline_knots_uniform(0.0, (double)(nSamples-1), bsw);
+//    gsl_vector *tmpD = gsl_vector_alloc(nSamples);
+//    gsl_vector *tmpT= gsl_vector_alloc(nSamples);
+//    gsl_vector *tmpB = gsl_vector_alloc(nSpline);
+//    gsl_vector *coeff = gsl_vector_alloc(nSpline);
+//
+//    for (size_t i = 0; i < nSamples; i++)
+//    {
+//      /* compute B_j(xi) for all j */
+//      gsl_bspline_eval(i, tmpB, bsw);
+//
+//      /* fill in row i of X */
+//      for (size_t j = 0; j < nSpline; j++)
+//        {
+//          gsl_matrix_set(baseMatrix, i, j, gsl_vector_get(tmpB, j));
+//        }
+//    }
+//    double chisq;
+//    gsl_matrix *cov = gsl_matrix_alloc(nSpline,nSpline);
+//    gsl_multifit_linear_workspace *mw = gsl_multifit_linear_alloc(nSamples, nSpline);
+//    for (size_t i=0; i<nDetectors; i++){
+//        for (size_t j=0; j<nSamples; j++)
+//            gsl_vector_set(tmpD,j,data[i*nSamples+j]);
+//        gsl_multifit_linear(baseMatrix, tmpD, coeff, cov, &chisq, mw);
+//        gsl_blas_dgemv(CblasNoTrans,1.0,baseMatrix,coeff,0.0,tmpT);
+//        gsl_vector_sub(tmpD,tmpT);
+//        for (size_t j=0; j<nSamples; j++)
+//            data[i*nSamples+j] = gsl_vector_get(tmpD,j);
+//    }
+//
+//    gsl_vector_free(tmpD);
+//    gsl_vector_free(tmpT);
+//    gsl_vector_free(tmpB);
+//    gsl_vector_free(coeff);
+//    gsl_matrix_free(cov);
+//    gsl_matrix_free(baseMatrix);
+//    gsl_multifit_linear_free(mw);
+//    gsl_bspline_free(bsw);
+//}
 
-void CleanBspline::splineResidual (double *data, double *flags, size_t nDetectors, size_t nSamples, gsl_vector  *azVector, gsl_vector  *elVector, double correlate){
-	MatDoub corrMatrix (nDetectors,nDetectors,0.0);
-	double dist;
-	double mindist = 0.0/3600.0;
-
-	if (dataArray->getAp()->getObservatory() == "LMT")
-		mindist /=3.0;
-
-	for (size_t i=0; i<nDetectors;i++){
-		corrMatrix[i][i] = 1.0;
-
-		//mn = mean(&data[i*nSamples], &flags[i*nSamples], nSamples);
-
-		for (size_t j=i+1; j<nDetectors; j++){
-			corrMatrix[i][j] = flagCorrelation(&data[i*nSamples], &flags[i*nSamples], &data[j*nSamples], &flags[j*nSamples],nSamples);
-			dist = sqrt(pow(gsl_vector_get(azVector,i*nSamples)-gsl_vector_get(azVector,j*nSamples),2) + pow(gsl_vector_get(elVector,i*nSamples)-gsl_vector_get(elVector,j*nSamples),2));
-			if (round(corrMatrix[i][j]*100.0)/100.0 < correlate || dist < mindist)
-				corrMatrix[i][j]=0.0;
-			corrMatrix[j][i]=corrMatrix[i][j];// = abs(corrMatrix[i][j]);
-		}
-	}
-	MatDoub outData (nDetectors, nSamples, 0.0);
-	VecBool isCleaned (nDetectors, false);
-
-	size_t oSamples=nSamples;
-
-	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
-		//Get the number of correlated bolometers
-		size_t nBoloCorr = 0;
-		for (size_t jbolo = 0; jbolo < nDetectors; jbolo++)
-			if (corrMatrix [ibolo][jbolo]> 0.0)
-				nBoloCorr++;
-		//cerr<<"Number of correlated bolometers"<< ibolo << "->"<< nBoloCorr<<endl;
-		if (nBoloCorr >= 2){
-
-			double increment = 1.0;
-			size_t index;
 
 
-			if (resample > 1){
-				long nnSamples = long(round(oSamples/resample));
-				increment = double(oSamples-1)/double(nnSamples-1);
-				nSamples =nnSamples;
-			}
 
-			size_t dataLen = nBoloCorr*nSamples;
-
-			size_t boloIndex [nBoloCorr];
-			boloIndex[0] = ibolo;
-			size_t curBolo = 1;
-			for (size_t jbolo = 0; jbolo < nDetectors; jbolo++)
-				if (corrMatrix[ibolo][jbolo] > 0.0 && ibolo != jbolo){
-					boloIndex[curBolo++]= jbolo;
-					//cerr <<jbolo<<endl;
-				}
-			double *cBoloData = new double [dataLen];
-			bool *cFlags = new bool [dataLen];
-			gsl_vector *cAzVector = gsl_vector_alloc(dataLen);
-			gsl_vector *cElVector = gsl_vector_alloc(dataLen);
-			//copy data
-			for (size_t jbolo = 0; jbolo < nBoloCorr; jbolo++){
-				for (size_t jSample = 0; jSample < nSamples; jSample++){
-					index = long(round(jSample*increment));
-					cBoloData[jbolo*nSamples+jSample] = data [boloIndex[jbolo]*oSamples+index];
-					cFlags [jbolo*nSamples+jSample] = flags [boloIndex[jbolo]*oSamples+index];
-					gsl_vector_set (cAzVector,jbolo*nSamples+jSample,gsl_vector_get(azVector,boloIndex[jbolo]*oSamples+index));
-					gsl_vector_set (cElVector, jbolo*nSamples+jSample, gsl_vector_get ( elVector ,boloIndex[jbolo]*oSamples+index));
-				}
-			}
-			//writeVecOut ("osData", data, nDetectors*nSamples);
-			//writeVecOut("sData.txt", cBoloData, nBoloCorr*nSamples);
-			double *tmplt = cottingham(cBoloData, cAzVector, cElVector, cFlags, nBoloCorr, nSamples, this->ap->cleanPixelSize, 0);
-
-
-			//writeVecOut("sTemplate.txt", tmplt, nBoloCorr*nSamples);
-			//exit(-1);
-
-			subtractTemplate (&outData[ibolo][0], oSamples, &tmplt[0], nSamples, increment, NULL, true);
-			//for (size_t iSample = 0; iSample<nSamples; iSample++)
-				//outData[ibolo][iSample] = tmplt [iSample];
-			delete [] tmplt;
-			delete [] cFlags;
-			delete [] cBoloData;
-			gsl_vector_free (cAzVector);
-			gsl_vector_free (cElVector);
-			isCleaned[ibolo]=true;
-
-		}
-	}
-
-	nSamples = oSamples;
-	for (size_t ibolo= 0; ibolo< nDetectors; ibolo++)
-		if (isCleaned[ibolo])
-			for (size_t jSample = 0; jSample<nSamples; jSample++)
-				data[ibolo*nSamples+jSample] -= outData[ibolo][jSample];
-}
-
-
-void CleanBspline::azelResidualLMT (double *data, double *flags, size_t nDetectors, size_t nSamples, gsl_vector *azOffsets, gsl_vector *elOffsets, double *sens){
+void CleanBspline::azelResidualLMT (double *data, double *flags, double *flagdis, double *kvector, size_t nDetectors, size_t nSamples, gsl_vector *azOffsets, gsl_vector *elOffsets, double *sens){
 	gsl_matrix * cBoloData = gsl_matrix_alloc(nDetectors, nSamples);
 	gsl_matrix * cBoloFlag = gsl_matrix_alloc (nDetectors, nSamples);
 	gsl_matrix *az = gsl_matrix_alloc(nDetectors, nSamples);
@@ -1721,21 +1505,37 @@ void CleanBspline::azelResidualLMT (double *data, double *flags, size_t nDetecto
 	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
 			for (size_t jSample = 0; jSample < nSamples; jSample++){
 				gsl_matrix_set (cBoloData,ibolo,jSample,data[ibolo*nSamples +jSample]);
-				gsl_matrix_set (cBoloFlag, ibolo,jSample, flags [ibolo*nSamples+ jSample]);
+				gsl_matrix_set (cBoloFlag, ibolo,jSample, (int)flags [ibolo*nSamples+ jSample] & (int)flagdis[ibolo*nSamples+ jSample]);
 				gsl_matrix_set (az, ibolo, jSample, gsl_vector_get(azOffsets,ibolo*nSamples+jSample));
 				gsl_matrix_set (el, ibolo, jSample, gsl_vector_get(elOffsets,ibolo*nSamples+jSample));
 			}
 
-		gsl_vector_set (corrCoefs, ibolo, sens[ibolo]);
+		gsl_vector_set (corrCoefs, ibolo, 1.0/pow(sens[ibolo],2.0));
 
 	}
 	AzElTemplateCalculator aeTemp  (cBoloData, cBoloFlag,az,el);
-//	aeTemp.overrideMode(LINEAR);
-	aeTemp.calculateTemplate(corrCoefs);
+	aeTemp.overrideMode(int(ap->getCleanStripe()));
+	aeTemp.calculateTemplate2(corrCoefs);
+//	aeTemp.decorrelateCoeffs(1);
+//	aeTemp.updateTemplate();
+	double atTmp;
 	gsl_matrix *atmTemplate = aeTemp.getTemplate();
 	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
-		for (size_t iSample = 0; iSample<nSamples; iSample++)
-			data[ibolo*nSamples+iSample] -= gsl_matrix_get (atmTemplate, ibolo, iSample);
+		for (size_t iSample = 0; iSample<nSamples; iSample++){
+			atTmp = gsl_matrix_get (atmTemplate, ibolo, iSample);
+			if (atTmp!=atTmp){
+				data[ibolo*nSamples+iSample] = 0.0;
+				flags[ibolo*nSamples+iSample] = 0;
+				cerr<<"CleanBSpline("<<tid<<")Az/El Template Object did not produce any valid data on file: " << ap->getDataFile()<<endl;
+				//exit(-1);
+			}
+			else{
+				data[ibolo*nSamples+iSample] -= atTmp;
+				if (this->cleanKernel)
+					data[ibolo*nSamples+iSample] -= atTmp;
+				gsl_matrix_set(cBoloData, ibolo, iSample,data[ibolo*nSamples+iSample]);
+			}
+		}
 	}
 
 	gsl_matrix_free(cBoloData);
@@ -1743,121 +1543,7 @@ void CleanBspline::azelResidualLMT (double *data, double *flags, size_t nDetecto
 	gsl_vector_free(corrCoefs);
 	gsl_matrix_free(az);
 	gsl_matrix_free(el);
-}
-
-
-void CleanBspline::azelResidual (double *data, double *flags, size_t nDetectors, size_t nSamples, double *azOffsets, double *elOffsets, double *sens){
-	gsl_matrix * cBoloData = gsl_matrix_alloc(nDetectors, nSamples);
-	gsl_matrix * cBoloFlag = gsl_matrix_alloc (nDetectors, nSamples);
-	gsl_vector *az = gsl_vector_alloc(nDetectors);
-	gsl_vector *el = gsl_vector_alloc(nDetectors);
-	gsl_vector *corrCoefs = gsl_vector_alloc (nDetectors);
-
-	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
-			for (size_t jSample = 0; jSample < nSamples; jSample++){
-				gsl_matrix_set (cBoloData,ibolo,jSample,data[ibolo*nSamples +jSample]);
-				gsl_matrix_set (cBoloFlag, ibolo,jSample, flags [ibolo*nSamples+ jSample]);
-			}
-		gsl_vector_set (az, ibolo, azOffsets[ibolo]);
-		gsl_vector_set (el, ibolo, elOffsets[ibolo]);
-		gsl_vector_set (corrCoefs, ibolo, sens[ibolo]);
-
-	}
-	AzElTemplateCalculator aeTemp  (cBoloData, cBoloFlag,az,el);
-	//aeTemp.overrideMode(LINEAR);
-	aeTemp.calculateTemplate(corrCoefs);
-	gsl_matrix *atmTemplate = aeTemp.getTemplate();
-	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
-		for (size_t iSample = 0; iSample<nSamples; iSample++)
-			data[ibolo*nSamples+iSample] -= gsl_matrix_get (atmTemplate, ibolo, iSample);
-	}
-	//gsl_matrix_free(atmTemplate);
-	gsl_matrix_free(cBoloData);
-	gsl_matrix_free(cBoloFlag);
-	gsl_vector_free(corrCoefs);
-	gsl_vector_free(az);
-	gsl_vector_free(el);
-}
-
-
-void CleanBspline::azelResidual (double *data, double *flags, size_t nDetectors, size_t nSamples, double *azOffsets, double *elOffsets, double correlate){
-	MatDoub corrMatrix (nDetectors,nDetectors,0.0);
-	double dist;
-	double mindist = 0.0;
-
-	for (size_t i=0; i<nDetectors;i++){
-		corrMatrix[i][i] = 1.0;
-		for (size_t j=i+1; j<nDetectors; j++){
-			corrMatrix[i][j] = flagCorrelation(&data[i*nSamples], &flags[i*nSamples], &data[j*nSamples], &flags[j*nSamples],nSamples);
-			dist = sqrt(pow(azOffsets[i]-azOffsets[j],2) + pow(elOffsets[i]-elOffsets[j],2));
-			if (round(corrMatrix[i][j]*100.0)/100.0 < correlate || dist < mindist)
-				corrMatrix[i][j]=0.0;
-			corrMatrix[j][i]=corrMatrix[i][j];// = abs(corrMatrix[i][j]);
-		}
-	}
-	MatDoub outData (nDetectors, nSamples, 0.0);
-	VecBool isCleaned (nDetectors, false);
-
-	for (size_t ibolo = 0; ibolo < nDetectors; ibolo++){
-		//Get the number of correlated bolometers
-		size_t nBoloCorr = 0;
-		for (size_t jbolo = 0; jbolo < nDetectors; jbolo++)
-			if (corrMatrix [ibolo][jbolo]> 0.0)
-				nBoloCorr++;
-		cout<<"Number of correlated bolometers"<< nBoloCorr<<endl;
-		if (nBoloCorr > 2){
-			size_t boloIndex [nDetectors];
-			boloIndex[0] = ibolo;
-			size_t curBolo = 1;
-			for (size_t jbolo = 0; jbolo < nDetectors; jbolo++)
-				if (corrMatrix[ibolo][jbolo] > 0.0)
-					boloIndex[curBolo++]= jbolo;
-			gsl_matrix * cBoloData = gsl_matrix_alloc(nBoloCorr, nSamples);
-			gsl_matrix * cBoloFlag = gsl_matrix_alloc (nBoloCorr, nSamples);
-			//copy data
-			for (size_t jbolo = 0; jbolo < nBoloCorr; jbolo++){
-				for (size_t jSample = 0; jSample < nSamples; jSample++){
-					gsl_matrix_set (cBoloData,jbolo,jSample,data[boloIndex[jbolo]*nSamples +jSample]);
-					gsl_matrix_set (cBoloFlag, jbolo,jSample, flags [boloIndex[jbolo]*nSamples+ jSample]);
-				}
-			}
-			//Now copy coordinates
-			gsl_vector *az = gsl_vector_alloc(nBoloCorr);
-			gsl_vector *el = gsl_vector_alloc(nBoloCorr);
-			gsl_vector *corrCoefs = gsl_vector_alloc (nBoloCorr);
-			for (size_t jbolo = 0; jbolo < nBoloCorr; jbolo++){
-				gsl_vector_set (az, jbolo, azOffsets[boloIndex[jbolo]]);
-				gsl_vector_set (el, jbolo, elOffsets[boloIndex[jbolo]]);
-				gsl_vector_set (corrCoefs, jbolo, corrMatrix[ibolo][boloIndex[jbolo]]);
-			}
-
-			AzElTemplateCalculator aeTemp  (cBoloData, cBoloFlag,az,el);
-			aeTemp.calculateTemplate(corrCoefs);
-
-//			//gsl_vector *btmp = gsl_vector_alloc(nSamples);
-//			writeGslMatrix("dataTemp.txt",cBoloData);
-//			//writeGslMatrix("azelTemplate.txt", tmplt);
-			aeTemp.removeTemplate();
-//			writeGslMatrix("azelResidual.txt", cBoloData);
-//			gsl_matrix *tmplt = aeTemp.getTemplate();
-			for (size_t iSample = 0; iSample<nSamples; iSample++)
-				outData[ibolo][iSample] = gsl_matrix_get (cBoloData, 0, iSample);
-
-			gsl_matrix_free(cBoloData);
-			gsl_matrix_free(cBoloFlag);
-			gsl_vector_free(az);
-			gsl_vector_free(el);
-			gsl_vector_free(corrCoefs);
-			isCleaned[ibolo] = true;
-//			exit(1);
-		}
-	}
-
-	for (size_t ibolo= 0; ibolo< nDetectors; ibolo++)
-		if (isCleaned[ibolo])
-			for (size_t jSample = 0; jSample<nSamples; jSample++)
-				data[ibolo*nSamples+jSample] = outData[ibolo][jSample];
-
+	
 }
 
 //Getters

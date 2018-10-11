@@ -14,7 +14,13 @@
    #include "novas.h"
 #endif
 
+#ifndef OMP_H
+	#include <omp.h>
+#endif
+
 #include <math.h>
+
+
 
 /*
    Global variables.
@@ -25,6 +31,10 @@
 
 static double PSI_COR = 0.0;
 static double EPS_COR = 0.0;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (PSI_COR,EPS_COR)
+#endif
 
 
 
@@ -1601,6 +1611,10 @@ short int place (double jd_tt, object *cel_object,
 
    static object earth, sun;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_time, tlast1,tlast2,jd_tdb, peb, veb, psb, vsb, px, py, pz,earth, sun)
+#endif
+
 /*
    Check for invalid value of 'coord_sys' or 'accuracy'.
 */
@@ -2247,6 +2261,10 @@ short int equ2ecl_vec (double jd_tt, short int coord_sys,
    static double ob2000 = 0.0;
    static double oblm, oblt;
    double t, secdiff, jd_tdb, pos0[3], w, x, y, z, obl;
+#if defined (_OPENMP)
+#pragma omp threadprivate (t_last, ob2000, oblm,oblt)
+#endif
+
 
 /*
    'jd_tdb' is the TDB Julian date corresponding to 'jd_tt'.
@@ -2396,6 +2414,10 @@ short int ecl2equ_vec (double jd_tt, short int coord_sys,
    static double ob2000 = 0.0;
    static double oblm, oblt;
    double t, secdiff, jd_tdb, pos0[3], w, x, y, z, obl = 0.0;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (t_last,ob2000,oblm,oblt)
+#endif
 
 /*
    'jd_tdb' is the TDB Julian date.
@@ -3033,6 +3055,10 @@ short int sidereal_time (double jd_high, double jd_low,
    double jd_ut, jd_tt, jd_tdb, tt_temp, t, theta, a, b, c, d,
       ra_cio, x[3], y[3], z[3], w1[3], w2[3], eq[3], ha_eq, st,
       secdiff, eqeq;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (ee, jd_last)
+#endif
 
 /*
    Invalid value of 'accuracy'.
@@ -3806,6 +3832,10 @@ void spin (double angle, double *pos1,
    static double xx, yx, zx, xy, yy, zy, xz, yz, zz;
    double angr, cosang, sinang;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (ang_last, xx, yx, zx, xy, yy, zy, xz, yz, zz)
+#endif
+
    if (fabs (angle - ang_last) >= 1.0e-12)
    {
       angr = angle * DEG2RAD;
@@ -4071,6 +4101,10 @@ void terra (on_surface *location, double st,
    double df, df2, phi, sinphi, cosphi, c, s, ach, ash, stlocl, sinst,
       cosst;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_entry, erad_km,ht_km)
+#endif
+
    if (first_entry)
    {
       erad_km = ERAD / 1000.0;
@@ -4218,6 +4252,10 @@ void e_tilt (double jd_tdb, short int accuracy,
    static double jd_last = 0.0;
    static double dp, de, c_terms;
    double t, d_psi, d_eps, mean_ob, true_ob, eq_eq;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (accuracy_last, jd_last, dp,de,c_terms)
+#endif
 
 /*
    Compute time in Julian centuries from epoch J2000.0.
@@ -4848,6 +4886,10 @@ void frame_tie (double *pos1, short int direction,
    const double da0  = -0.01460;
    static double xx, yx, zx, xy, yy, zy, xz, yz, zz;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (compute_matrix, xx, yx, zx, xy, yy, zy, xz, yz, zz)
+#endif
+
 /*
    Compute elements of rotation matrix to first order the first time
    this function is called.  Elements will be saved for future use and
@@ -5147,6 +5189,10 @@ short int geo_posvel (double jd_tt, double delta_t, short int accuracy,
    double x, secdif, gmst, x1, x2, x3, x4, eqeq, pos1[3], vel1[3],
       pos2[3], vel2[3], pos3[3], vel3[3], jd_tdb, jd_ut1;
    short int error = 0;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (t_last, gast,fac,first_time)
+#endif
 
 /*
    Invalid value of 'accuracy'.
@@ -5612,6 +5658,10 @@ short int grav_def (double jd_tdb, short int loc_code,
    cat_entry dummy_star;
 
    static object body[7], earth;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_time, nbodies_last, body,earth)
+#endif
 
    jd[1] = 0.0;
 
@@ -6108,6 +6158,10 @@ void rad_vel (object *cel_object, double *pos, double *vel,
    double v[3], ra, dec, radvel, posmag, uk[3], v2, vo2, r, phigeo,
       phisun, rel, rar, dcr, cosdec, du[3], zc, kv, zb1, kvobs, zobs1;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_call, c2,toms,toms2)
+#endif
+
 /*
    Set up local constants the first time this function is called.
 */
@@ -6391,6 +6445,10 @@ short int precession (double jd_tdb1, double *pos1, double jd_tdb2,
    static double xx, yx, zx, xy, yy, zy, xz, yz, zz;
    double eps0 = 84381.406;
    double  t, psia, omegaa, chia, sa, ca, sb, cb, sc, cc, sd, cd;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_time, t_last, xx, yx, zx, xy, yy, zy, xz, yz, zz )
+#endif
 
 /*
    Check to be sure that either 'jd_tdb1' or 'jd_tdb2' is equal to T0.
@@ -7473,6 +7531,10 @@ short int cio_location (double jd_tdb, short int accuracy,
 
    static FILE *cio_file;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_call, ref_sys_last,use_file, t_last, ra_last, cio, cio_file)
+#endif
+
 /*
    Check if the input external binary file exists and can be read.
 */
@@ -7690,6 +7752,11 @@ short int cio_basis (double jd_tdb, double ra_cio, short int ref_sys,
    static double xx[3], yy[3], zz[3];
    double z0[3] = {0.0, 0.0, 1.0};
    double w0[3], w1[3], w2[3], sinra, cosra, xmag;
+
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (ref_sys_last, t_last,xx,yy,zz)
+#endif
 
 /*
    Compute unit vector z toward celestial pole.
@@ -7925,6 +7992,12 @@ short int cio_array (double jd_tdb, long int n_pts,
 
    static FILE *cio_file;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_call,last_index_rec, last_n_pts, header_size, record_size, n_recs,jd_beg, jd_end, t_int, t, ra,double_size, long_size, cio_file)
+#endif
+
+
+
 /*
    Set the sizes of the file header and data records, open the CIO file,
    and read the file header on the first call to this function.
@@ -7969,7 +8042,7 @@ short int cio_array (double jd_tdb, long int n_pts,
    the last value of 'n_pts'.
 */
 
-   del_n_pts = labs (n_pts - last_n_pts);
+   del_n_pts = abs (n_pts - last_n_pts);
 
 /*
    Allocate memory for the 't' and 'ra' arrays.
@@ -8032,7 +8105,7 @@ short int cio_array (double jd_tdb, long int n_pts,
 */
 
    del_index = index_rec - last_index_rec;
-   abs_del_index = labs (del_index);
+   abs_del_index = abs (del_index);
 
 /*
    Determine the file read strategy.
@@ -8069,7 +8142,7 @@ short int cio_array (double jd_tdb, long int n_pts,
 
     else if ((abs_del_index <= n_pts) && (del_n_pts == 0))
    {
-      n_swap = labs (n_pts - abs_del_index);
+      n_swap = abs (n_pts - abs_del_index);
       n_read = abs_del_index;
 
 /*
@@ -8221,6 +8294,11 @@ double ira_equinox (double jd_tdb, short int equinox,
    static double t_last = 0.0;
    static double eq_eq = 0.0;
    double t, u, v, w, x, prec_ra, ra_eq;
+
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (acc_last, t_last, eq_eq)
+#endif
 
 /*
    Compute time in Julian centuries.
@@ -9016,6 +9094,10 @@ void limb_angle (double pos_obj[3], double pos_obs[3],
 
    static double pi, halfpi, rade;
    double disobj, disobs, aprad, zdlim, coszd, zdobj;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (first_entry,  pi, halfpi, rade)
+#endif
 
    if (first_entry)
    {

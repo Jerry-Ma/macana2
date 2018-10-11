@@ -17,6 +17,7 @@ using namespace std;
 #include "gaussFit.h"
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_sort_vector.h>
+#include "GslRandom.h"
 #include "Coaddition.h"
 #include "NoiseRealizations.h"
 #include "Telescope.h"
@@ -130,13 +131,13 @@ bool NoiseRealizations::generateNoiseRealizations(Coaddition* cmap)
   //write the noise map to a file before moving on
   cerr << "Generating Noise Realizations: " << endl;
   int n;
-  GslRandom* ran;
-  ran = ap->macanaRandom;
 
-  #pragma omp parallel shared (ran,weight, mynrows, myncols, myPixelSize, myRow, myCol) private (n,myNoise)
+
+  #pragma omp parallel shared (weight, mynrows, myncols, myPixelSize, myRow, myCol) private (n,myNoise)
   {
   #pragma omp for schedule(dynamic)
   for(int inoise=0;inoise<nNoiseFiles;inoise++){
+	GslRandom ran;
 	myNoise = new Map(string("noise"), mynrows, myncols, myPixelSize,
 			  weight, myRow, myCol);
     myNoise->image.assign(mynrows,myncols,0.);
@@ -162,7 +163,7 @@ bool NoiseRealizations::generateNoiseRealizations(Coaddition* cmap)
 	  
 	  //randomly choose one of the noise maps
 	  int nN = ap->getNNoiseMapsPerObs();
-	  n = floor(ran->uniformDeviate(1,nN));
+	  n = floor(ran.uniformDeviate(1,nN));
 	  if(n == nN) n = nN;
 	  string onoise = "noise";
 	  stringstream o;

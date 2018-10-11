@@ -6,12 +6,13 @@
 #include <cstdio>
 #include <sys/stat.h>
 #include <iostream>
+#include <omp.h>
+
 using namespace std;
 
 #include "nr3.h"
 #include "AnalParams.h"
 #include "tinyxml2.h"
-#include "SimParams.h"
 
 ///AnalParams constructor
 /** The AnalParams constructor pulls analysis parameters from an xml
@@ -39,7 +40,7 @@ AnalParams::AnalParams(string apXmlFile)
 
   xml.LoadFile(apXml.c_str());
 
-  this->simParams = NULL;
+
   //pack up the analysis parameters and steps first
   tinyxml2::XMLElement* xAnalysis;
   tinyxml2::XMLElement* xSteps;
@@ -170,6 +171,10 @@ AnalParams::AnalParams(string apXmlFile)
   xtmp = xParameters->FirstChildElement("neigToCut");
   if(!xtmp) throwXmlError("neigToCut not found.");
   neigToCut = atoi(xtmp->GetText());
+  icaMode = 0;
+  const char *strSingle = xtmp->Attribute("icamode");
+  if (strSingle != NULL)
+	  icaMode = atoi (strSingle);
 
   xtmp = xParameters->FirstChildElement("cutStd");
   if(!xtmp) throwXmlError("cutStd not found.");
@@ -197,6 +202,12 @@ AnalParams::AnalParams(string apXmlFile)
   if (strMethod)
 	  stripeMethod.assign(strMethod);
   
+  mask = 0.0;
+  xtmp = xParameters->FirstChildElement("mask");
+  if(xtmp){
+	  mask = atof(xtmp->GetText());
+  }
+
   xtmp = xParameters->FirstChildElement("controlChunk");
   if(!xtmp) throwXmlError("controlChunk not found.");
   controlChunk = atof(xtmp->GetText());
@@ -377,34 +388,6 @@ AnalParams::AnalParams(string apXmlFile)
   }
 
 
-  //check to see if the altKernel parameters are set
-  //These are parameters for choosing an alternative kernel shape
-  //to the normal Gaussian beam shape
-  tinyxml2::XMLElement* xAltKernel;
-    xAltKernel = xAnalysis->FirstChildElement("altKernel");
-    if(xAltKernel){
-      altKernel = 1;
-      xtmp = xAltKernel->FirstChildElement("kernelName");
-      if(!xtmp) throwXmlError("kernelName not set");
-      kernelName = xtmp->GetText();
-      if(kernelName == "core"){
-	xtmp = xAltKernel->FirstChildElement("coreR0");
-	if(!xtmp) throwXmlError("altKernel=core but coreR0 not set");
-	coreR0 = atof(xtmp->GetText());
-	xtmp = xAltKernel->FirstChildElement("coreP");
-	if(!xtmp) throwXmlError("altKernel=core but coreP not set");
-	coreP = atof(xtmp->GetText());
-	xtmp = xAltKernel->FirstChildElement("coreAxisRatio");
-	if(!xtmp) throwXmlError("altKernel=core but coreAxisRatio not set");
-	coreAxisRatio = atof(xtmp->GetText());
-      } else {
-	cerr << "Unknown altKernel name supplied." 
-	     << "  Currently support 'core' only." << endl;
-	exit(1);
-      }
-    }
-
-
   //the observations
   tinyxml2::XMLElement* xObs;
   xObs = xAnalysis->FirstChildElement("observations");
@@ -479,37 +462,6 @@ AnalParams::AnalParams(string apXmlFile)
   }
 
   cerr << "Planning to analyze " << nFiles << " files." << endl;
-
-  xtmp = xAnalysis->FirstChildElement("simulate");
-  if (xtmp != NULL)
-	  this->simParams = new SimParams(xtmp);
-
-  doSubtract = false;
-  subtractFirst =false;
-  xtmp = xAnalysis->FirstChildElement("subtract");
-  if (xtmp != NULL){
-    struct stat st;
-    tinyxml2::XMLElement *stmp = xtmp->FirstChildElement("subPath");
-    if (stmp != NULL){
-      subtractPath.assign(stmp->GetText());
-      if(stat(subtractPath.c_str(),&st) == -1){
-        cerr << "AnalParams: subtractPath not such file/directory: " << subtractPath << endl;
-        exit(1);
-      }
-      tinyxml2::XMLElement *sfiletmp = xtmp->FirstChildElement("subFile");
-      if (sfiletmp !=NULL){
-        subtractFile.assign(sfiletmp->GetText());
-        if(stat((subtractPath+subtractFile).c_str(),&st) == -1){
-          cerr << "AnalParams: subtractFile not  such file/directory: " << subtractFile << endl;
-        }
-        doSubtract = true;
-      }
-      tinyxml2::XMLElement *sFirst = xtmp->FirstChildElement("subFirst");
-      if (sFirst)
-      subtractFirst = true;
-    }
-  }
-
 
 
   //do we have post reduction information?
@@ -907,9 +859,7 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
   }
 
   cerr << "------------------ o -----------------------" << endl;
-
 }
-
 
 ///AnalParams constructor
 /** The AnalParams copy  constructor pulls analysis parameters from 
@@ -950,10 +900,12 @@ AnalParams::AnalParams(AnalParams *ap){
   this->cutSamplesAtEndOfScans = ap->cutSamplesAtEndOfScans;
   this->cutStd = ap->cutStd;
   this->neigToCut=ap->neigToCut;
+  this->icaMode=ap->icaMode;
   this->cleanPixelSize = ap->cleanPixelSize;
   this->order = ap->order;
   this->cleanStripe = ap->cleanStripe;
   this->stripeMethod.assign(ap->stripeMethod);
+  this->mask = ap->mask;
   this->controlChunk = ap->controlChunk;
   this->resample = ap->resample;
   this->bsOffset[0] = ap->bsOffset[0];
@@ -964,21 +916,6 @@ AnalParams::AnalParams(AnalParams *ap){
   this->nThreads = ap-> nThreads;
   this->saveTimeStreams = ap->saveTimeStreams;
   this->tOrder = ap->tOrder;
-  if (ap->simParams != NULL)
-	  this->simParams = new SimParams(ap->simParams);
-  else
-	  this->simParams = NULL;
-  this->doSubtract = ap->doSubtract;
-  this->subtractFile = ap->subtractFile;
-  this->subtractPath = ap->subtractPath;
-  this->templateFile = ap->templateFile;
-  this->subtractFirst = ap->subtractFirst;
-
-  this->kernelName = ap->kernelName;
-  this->coreR0 = ap->coreR0;
-  this->coreP = ap->coreP;
-  this->coreAxisRatio = ap->coreAxisRatio;
-
 
   ///post reduction values (added 2-7-13 NB)
   this->beamSize = ap->beamSize;
@@ -1059,15 +996,23 @@ bool AnalParams::setDataFile(int index)
   bsOffset[0] = bsOffsetList[0][index];
   bsOffset[1] = bsOffsetList[1][index];
 
+  size_t tid;
+
+#if defined(_OPENMP)
+	  tid = omp_get_thread_num() + 1;
+#else
+	  tid = 0;
+#endif
+
   //reset the mastergrid
   setMasterGridJ2000(masterGridJ2000_init[0], masterGridJ2000_init[1]);  
 
-  cerr << endl;
-  cerr << "Now starting: " << dataFile << "." << endl;
+  cout << endl;
+  cout << "Analysis("<<tid<<"). Now starting: " << dataFile << "." << endl;
 
   //determine the observatory
   determineObservatory();
-  cerr << "Observatory is " << observatory << endl;
+  cout << "Analysis("<<tid<<"). Observatory is " << observatory << endl;
   
   return 1;
 }
@@ -1082,7 +1027,7 @@ bool AnalParams::determineObservatory()
 #pragma omp critical (dataio)
 {
   NcError ncerror(NcError::silent_nonfatal);
-  NcFile ncfid(dataFile, NcFile::ReadOnly);
+  NcFile ncfid(dataFile, NcFile::ReadOnly, NULL, 0);
   NcVar* timeVar = ncfid.get_var("Data.AztecBackend.time");
   if(timeVar){
     cerr << "AnalParams::determinObservatory(): ";
@@ -1712,22 +1657,6 @@ int AnalParams::getTOrder(){
 	return tOrder;
 }
 
-SimParams* AnalParams::getSimParams(){
-	return this->simParams;
-}
-
-string AnalParams::getTemplateFile(){
-	return this->templateFile;
-}
-
-string AnalParams::getSubtractFile() {
-	return subtractPath+"/"+subtractFile;
-}
-
-bool AnalParams::getDoSubtract() {
-	return doSubtract;
-}
-
 int AnalParams::getNNoiseMapsPerObs(){
   return nNoiseMapsPerObs;
 }
@@ -1740,26 +1669,6 @@ bool AnalParams::getCalcCompleteness(){
   return calcCompleteness;
 }
 
-bool AnalParams::getAltKernel(){
-  return altKernel;
-}
-
-string AnalParams::getKernelName(){
-  return kernelName;
-}
-
-double AnalParams::getCoreR0(){
-  return coreR0;
-}
-
-double AnalParams::getCoreP(){
-  return coreP;
-}
-
-double AnalParams::getCoreAxisRatio(){
-  return coreAxisRatio;
-}
-
 //----------------------------- o ---------------------------------------
 
 AnalParams::~AnalParams()
@@ -1767,8 +1676,7 @@ AnalParams::~AnalParams()
   delete [] masterGridJ2000;
   delete [] masterGridJ2000_init;
   delete [] fileList;
+  delete [] bstatList;
   delete [] mapFileList;
   delete macanaRandom;
-  if (simParams !=NULL)
-	  delete simParams;
 }

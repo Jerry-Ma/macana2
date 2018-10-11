@@ -29,6 +29,10 @@
    #include <stdio.h>
 #endif
 
+
+#ifndef OMP_H
+#include <omp.h>
+#endif
 /*
    External variables
 */
@@ -44,6 +48,10 @@ extern double SS[3], JPLAU, PC[18], VC[18], TWOT, EM_RATIO;
 extern double *BUFFER;
 
 extern FILE *EPHFILE;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (KM, IPT,LPT, NRL,NP,NV, RECORD_LENGTH, SS, JPLAU, VC, TWOT, EM_RATIO, BUFFER, EPHFILE)
+#endif
 
 /*
    Function prototypes

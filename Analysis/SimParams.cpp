@@ -6,6 +6,7 @@
 SimParams::SimParams(tinyxml2::XMLElement *apXml){
 
 	  tinyxml2::XMLElement *xSim = apXml;
+	  tinyxml2::XMLElement *xMap;
 	  tinyxml2::XMLElement *xtmp;
 	  struct stat buf;
 
@@ -14,12 +15,33 @@ SimParams::SimParams(tinyxml2::XMLElement *apXml){
 	  this->addSignal = atoi(xtmp->GetText());
 
 	  xtmp = xSim->FirstChildElement("atmFreq");
-	  if(!xtmp) throwXmlError("SimParams()::atmFreq not found.");
-	  this->atmFreq = atof(xtmp->GetText());
+	  if(!xtmp)
+		  this->atmFreq = 0.;
+	  else
+		  this->atmFreq = atof(xtmp->GetText());
+
+	  xtmp = xSim->FirstChildElement("resample");
+	  if(!xtmp)
+		  this->resample = 0.;
+	  else{
+		  this->resample= atof(xtmp->GetText());
+		  cout<<"SimParams(): Requested to resample model signal with frequency: "<<this->resample<<"Hz"<<endl;
+	  }
+
+	  xtmp = xSim->FirstChildElement("atmSeed");
+	  if(!xtmp)
+		  this->atmSeed = 0;
+	  else
+		  this->atmSeed= atol(xtmp->GetText());
+
+	  if (atmFreq !=0. && atmSeed != 0)
+		  throwXmlError("SimParams Error. Options atmFreq and atmSeed are mutually exclusive. Please check your Analysis parameter file.");
 
 	  xtmp = xSim->FirstChildElement("noiseChunk");
-	  if(!xtmp) throwXmlError("SimParams()::noiseChunk not found.");
-	  this->noiseChunk = atof(xtmp->GetText());
+	  if(!xtmp)
+		  this->noiseChunk = 0.;
+	  else
+		  this->noiseChunk = atof(xtmp->GetText());
 
 	  xtmp = xSim->FirstChildElement("fluxFactor");
 	  if(!xtmp) throwXmlError("SimParams()::fluxFactor addSignal not found.");
@@ -55,6 +77,8 @@ SimParams::SimParams(SimParams *sp){
 	fluxFactor = sp->fluxFactor;
 	atmFreq = sp->atmFreq;
 	noiseChunk = sp->noiseChunk;
+	atmSeed = sp->atmSeed;
+	resample= sp->resample;
 }
 
 
@@ -72,6 +96,20 @@ double SimParams::getAtmFreq()
 }
 double SimParams::getNoiseChunk(){
 	return noiseChunk;
+}
+
+long SimParams::getAtmSeed(){
+	return atmSeed;
+}
+
+double SimParams::getResample(){
+	return resample;
+}
+
+void SimParams::updateSeed(long fileNumber){
+	if (atmSeed >0){
+		atmSeed+=fileNumber;
+	}
 }
 
 string SimParams::getMapFile(){

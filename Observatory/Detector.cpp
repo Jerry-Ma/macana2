@@ -156,8 +156,8 @@ void Detector::initialize(AnalParams* analParams, const char* dId)
   char stmp[10];
   id = atol(strcpy(stmp,dId+1));
   int test;
-//#pragma omp critical (dataio)
-//{
+#pragma omp critical (dataio)
+{
   //open the file 
   NcFile ncfid(dataFile, NcFile::ReadOnly);
   NcVar* bolo=ncfid.get_var(n.c_str());
@@ -179,21 +179,7 @@ void Detector::initialize(AnalParams* analParams, const char* dId)
 
   //create the detector value array and pack it
   hValues.resize(nSamples);
-  getBoloValues(&hValues[0]);
-  hSampleFlags.resize(nSamples);
-  atmTemplate.resize(0);
-  for(int i=0;i<nSamples;i++) hSampleFlags[i]=1;
-
-  //get the detector dc value
-  Doub dctmp=0;
-  for(int i=0;i<nSamples;i++) dctmp+=hValues[i];
-  dc = dctmp/nSamples;
-
-  //estimate opacity and responsivity, initialize extinction to 0 to remind
-  //us we've got to do this in main
-  estimateTau();
-  extinction=0;
-  estimateResponsivity();
+  getBoloValues(bolo,&hValues[0]);
 
   //get the electronics gain
   NcError ncerror(NcError::silent_nonfatal);
@@ -222,7 +208,24 @@ void Detector::initialize(AnalParams* analParams, const char* dId)
 
   //close the ncfile just to be sure
   test = ncfid.close();
-//}
+}
+	hSampleFlags.resize(nSamples);
+	atmTemplate.resize(0);
+	for(int i=0;i<nSamples;i++) hSampleFlags[i]=1;
+
+	//get the detector dc value
+	Doub dctmp=0;
+	for(int i=0;i<nSamples;i++) dctmp+=hValues[i];
+	dc = dctmp/nSamples;
+
+	//estimate opacity and responsivity, initialize extinction to 0 to remind
+	//us we've got to do this in main
+	estimateTau();
+	extinction=0;
+	estimateResponsivity();
+
+
+
   if(!test){
     cerr << "Detector:: Failed to close the netcdf datafile." << endl;
     exit(1);
@@ -234,13 +237,13 @@ void Detector::initialize(AnalParams* analParams, const char* dId)
 
 
 ///returns vector of detector values
-bool Detector::getBoloValues(double *bData)
+bool Detector::getBoloValues(NcVar * bolo, double *bData)
 {
   //open the netcdf file
 //#pragma omp critical (dataio)
 //{
-  NcFile ncfid(dataFile, NcFile::ReadOnly);
-  NcVar* bolo=ncfid.get_var(name.c_str());
+  //NcFile ncfid(dataFile, NcFile::ReadOnly);
+  //NcVar* bolo=ncfid.get_var(name.c_str());
   
   //need size of detector array
   long int* edges = bolo->edges();
@@ -264,7 +267,7 @@ bool Detector::getBoloValues(double *bData)
 
   //cleanup
   delete [] edges;
-  ncfid.close();
+//  ncfid.close();
 //}
 
   return 1;
@@ -350,6 +353,7 @@ bool Detector::despike(double nSigmaSpikes)
   }
   */
 
+
   //if there are multiple spikes in a window of 10 samples then
   //call it a single spike at the location of the middle of the window
   for(int i=0;i<nSamples;i++){
@@ -375,6 +379,7 @@ bool Detector::despike(double nSigmaSpikes)
       i = i+9;
     }
   }
+	
 
   //FLAG THE SAMPLES AROUND ANY SPIKES
   if(nSpikes > 0){
@@ -733,26 +738,51 @@ double Detector::getCalibrationFactor(){
 
 //----------------------------- o ---------------------------------------
 
-bool Detector::calculateScanWeight(Telescope* tel)
+bool Detector::calculateScanWeight(Telescope* tel, double mask)
 {
   //calculate the inverse variance of the unflagged samples
   //for each scan
   int nScans = tel->scanIndex.ncols();
   scanWeight.resize(nScans);
 
+  VecBool myFlags(hSampleFlags.size(),true);
+  double d;
+
+  for (register size_t i=0; i<hSampleFlags.size(); i++){
+	  if (mask > 0){
+		  d = 180.0/M_PI* sqrt(pow(hRa[i],2)+pow(hDec[i],2));
+		  if (d<mask/3600.)
+			  myFlags[i]=false;
+	  }else
+		  myFlags[i]=hSampleFlags[i];
+  }
   //loop through the scans
   for(int i=0;i<nScans;i++){
     int si = tel->scanIndex[0][i];
     int ei = tel->scanIndex[1][i];
     double tmp=0.;
     double count=0.;
-    tmp = stddev(hValues, hSampleFlags, si, ei, &count);
+
+
+
+    tmp = stddev(hValues, myFlags, si, ei-1, &count);
+//    for(int j=si;j<ei;j++){
+//    	if(hSampleFlags[j]){
+////    		tmp += pow(hValues[j],2);
+//    		count++;
+//    	}
+//    }
+//    tmp /= (count+1);
  
     //insist on at least 1s of good samples
-    if (tmp!=tmp || count < samplerate)
+    if (count < samplerate ){
     	scanWeight[i]=0.0;
+    	cerr<<"Detector::calculateScanWeight(). Warning weight set to 0.0 in scan: "<<i << " for file: " << this->ap->getMapFile();
+    }
     else
     	scanWeight[i]= 1.0/pow(tmp,2.0);
+
+   // scanWeight[i] = (count < samplerate) ? 0. : 1./tmp;
   }
 
   return 1;
@@ -959,6 +989,7 @@ void Detector::addGaussian(MatDoub &params, int detNumber)
   }
 }
 
+
 //----------------------------- o ---------------------------------------
 
 
@@ -1034,6 +1065,16 @@ bool Detector::getPointing(Telescope* tel, TimePlace* tp, Source* source)
     	  azOfftmp = azOffset;
     	  elOfftmp = elOffset;
       }
+
+      /*
+      //remove the user offsets if LMT data
+      if(LMT){
+	double azo = tel->getAzUserOff();
+	double elo = tel->getElUserOff();
+	azOfftmp = azOfftmp - azo;
+	elOfftmp = elOfftmp - elo;
+      }
+      */
 
       //apply the bs offset assuming it is in arcseconds like azOffset
       //and elOffset
@@ -1114,10 +1155,10 @@ bool Detector::getPointing(Telescope* tel, TimePlace* tp, Source* source)
 
 //---------------------------- o ----------------------------------------
 bool Detector::getAzElPointing (Telescope *tel){
-  azElRa.resize(nSamples);
-  azElDec.resize(nSamples);
-  azElRaPhys.resize(nSamples);
-  azElDecPhys.resize(nSamples);
+  hAz.resize(nSamples);
+  hEl.resize(nSamples);
+  hAzPhys.resize(nSamples);
+  hElPhys.resize(nSamples);
   
   bool LMT = (ap->getObservatory().compare("LMT") == 0);
 
@@ -1134,10 +1175,10 @@ bool Detector::getAzElPointing (Telescope *tel){
 	  }
 
 
-	  azElRa[i] = tel->hTelAzAct[i]*360.0/TWO_PI + azOff/3600.0;
-	  azElDec[i] = tel->hTelElAct[i]*360.0/TWO_PI + elOff/3600.0;
-	  azElRaPhys[i] = tel->hTelAzPhys[i]*360.0/TWO_PI + azOff/3600.0;
-	  azElDecPhys[i]= tel->hTelElPhys[i]*360.0/TWO_PI + elOff/3600.0;
+	  hAz[i] = tel->hTelAzAct[i]*360.0/TWO_PI + azOff/3600.0;
+	  hEl[i] = tel->hTelElAct[i]*360.0/TWO_PI + elOff/3600.0;
+	  hAzPhys[i] = tel->hTelAzPhys[i]*360.0/TWO_PI + azOff/3600.0;
+	  hElPhys[i]= tel->hTelElPhys[i]*360.0/TWO_PI + elOff/3600.0;
   }
   return 1;
 }
@@ -1164,12 +1205,12 @@ bool Detector::makeKernelTimestream(Telescope* tel)
   if(0){
     //This is the Az/El approach
     //some of what follows is observatory-dependent
-    bool LMT=0, ASTE=0;
+    bool LMT=false, ASTE=false;
     string observatory = ap->getObservatory();
     if(observatory.compare("LMT") == 0){
-      LMT=1;
+      LMT=true;
     } else if(observatory.compare("ASTE") == 0){
-      ASTE=1;
+      ASTE=true;
     }
     
     //rotated detector offsets
@@ -1214,27 +1255,6 @@ bool Detector::makeKernelTimestream(Telescope* tel)
       hKernel[i] = exp(-0.5*pow(dist[i]/sigma,2));
     }
   }
-
-  //check if altKernel is set.  If so, redefine the kernel
-  if(ap->getAltKernel()){
-    if(ap->getKernelName() == "core"){
-      //This is the starless core kernel defined by Rob Gutermuth
-      double r0 = ap->getCoreR0();
-      double p = ap->getCoreP();
-      double ar = ap->getCoreAxisRatio();
-      for(int i=0;i<nSamples;i++){
-	hKernel[i] = 0.;
-	if(dist[i] <= 6.*sigma){
-	  double thetas = atan(hDec[i]/hRa[i]);
-	  double rads = dist[i];
-	  double reff = sqrt(pow(rads*cos(thetas)*sqrt(ar),2) +
-			     pow(rads*sin(thetas)*sqrt(ar),2));
-	  hKernel[i] = pow(1.+(reff/r0),-p);
-	}
-      }     
-    }
-  }
-
 
   return 1;
 }

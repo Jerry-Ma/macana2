@@ -43,11 +43,11 @@ void SBSM::createBaseMatrix(){
 
 	gsl_bspline_knots_uniform(0.0, (double)(nSamples-1), bsw);
 	//Now create the matrix
-	for (long i=0; i<(long)nSamples; i++){
+	for (unsigned long i=0; i<nSamples; i++){
 	    gsl_bspline_eval(gsl_vector_get(time,i), btdata, bsw);
 	    kstart = -1;
 	    kend = -1;
-	    for (int k=0; k<(int)nSpline; k++){
+	    for (unsigned int k=0; k<nSpline; k++){
 	      c_sample = gsl_vector_get(btdata, k);
 	      if (kstart == -1 && c_sample > tol){
 		kstart = k;

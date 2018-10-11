@@ -1,3 +1,5 @@
+using namespace std;
+
 #include "Clean.h"
 
 
@@ -9,4 +11,6 @@ Clean::Clean(Array *dataArray, Telescope *telescope){
   if (this->dataArray != NULL){
     this->ap=dataArray->getAp();
   }
+  this->nodc=false;
 }
+

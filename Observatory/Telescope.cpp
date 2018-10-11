@@ -676,8 +676,18 @@ bool Telescope::defineScans(AnalParams* ap, double timeChunk)
 
     cerr << "Telescope::defineScans(): " << 
       "Redefining scans to use all data." << endl;
+    //DSz-2015-07-12
+    //Use the turning signal to get the first and last samples that are on source
+    //otherwise if telescope is slewing maps get insanely large
     int firstScanI=0;//scanIndex[0][0];
     int lastScanI =nSamples-1;//scanIndex[1][nScans-1];
+
+    while (turning[firstScanI] == 1)
+    	firstScanI++;
+
+    while (turning[lastScanI] == 1)
+    	lastScanI--;
+
     double period = floor(timeChunk*samplerate);
     int newNScans = floor((lastScanI-firstScanI+1)*1./period);
     scanIndex.resize(2,newNScans);

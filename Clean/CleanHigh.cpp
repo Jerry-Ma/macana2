@@ -606,6 +606,7 @@ MatDoub CleanHigh::CovMat (MatDoub d){
 
 MatDoub CleanHigh::CorMat (MatDoub d){
     size_t nRows = d.nrows();
+    size_t nCols = d.ncols();
     MatDoub Cov(nRows,nRows);
     MatDoub Cor(nRows,nRows);
     

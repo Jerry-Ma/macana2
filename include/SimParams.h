@@ -2,7 +2,7 @@
 #define _SIMPARAMS_H_
 
 #include <string.h>
-#include "nr3.h"
+#include <nr3.h>
 
 #include "tinyxml2.h"
 
@@ -25,7 +25,9 @@ class SimParams{
   bool addSignal;       			//True add signal to current streams, False simulated signal only-->
   double fluxFactor;
   double atmFreq;
+  long atmSeed;
   double noiseChunk;
+  double resample;
 
   void throwXmlError(string p);
 
@@ -37,7 +39,10 @@ class SimParams{
   bool getAddSignal();
   double getFluxFactor();
   double getAtmFreq();
+  double getResample();
   double getNoiseChunk();
+  long getAtmSeed();
+  void updateSeed(long fileNumber);
 
 };
 

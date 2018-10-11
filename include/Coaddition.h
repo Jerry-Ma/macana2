@@ -42,6 +42,8 @@ class Coaddition
   //tau information
   VecDoub individualMapsTau;
   double coaddAvgTau;
+  double totalIntTime;
+  int totalFiles;
 
  public:
   Map* signal;                 ///<coadded unfiltered signal map
@@ -82,6 +84,7 @@ class Coaddition
   bool writeCoadditionToNcdf();
   bool writeCoadditionToFits(string fitsFilename);
   bool writeFilteredMapsToNcdf();
+  bool writeNoiseRMSToNcdf(double noise);
   bool findSources();
   bool findSources(double* signalMap, double* s2nMap, Coaddition* realCoadd,
                    double maxS2N); ///<last argument needs to go when Wiener

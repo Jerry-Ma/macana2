@@ -4,7 +4,9 @@
 #include <string>
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
-#include <sys/time.h>
+#include <time.h>
+#include <omp.h>
+#include <random>
 using namespace std;
 
 #include "GslRandom.h"
@@ -15,43 +17,44 @@ GslRandom::GslRandom()
   //create the generator
   r = gsl_rng_alloc(gsl_rng_mt19937);  //using the MT19937 generator
 
+  //gsl_rng * g = gsl_rng_alloc (gsl_rng_taus);
+
   //set the random number seed based on the current system time
   //which is seconds since a long time ago
-  //GW - 17Nov15 - this turns out to have been a bad idea as 
-  //when running in parallel mode this constructor could be 
-  //called several times a second.  The following increases
-  //the resolution to ns.
-  timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  seed = ts.tv_sec*1e9 + ts.tv_nsec;
+//  time_t t;
+//  time(&t);
+//  seed = long(t);
+  long tid;
+#if defined(_OPENMP)
+	  tid = omp_get_thread_num() + 1;
+#else
+	  tid = 1;
+#endif
+//  seed += tid;
+  //set the generator
+  seed = std::random_device()();
   gsl_rng_set(r,seed);
 }
 
-//constructor with a given seed
-GslRandom::GslRandom(long seed)
-{
-  //create the generator
-  r = gsl_rng_alloc(gsl_rng_mt19937);  //using the MT19937 generator
-  gsl_rng_set(r,seed);
+void GslRandom::reseed(long seed){
+	this->seed = seed;
+	gsl_rng_set (r,seed);
 }
 
 
+long GslRandom::getSeed(){
+	return seed;
+}
 //return a gaussian deviate with variance=1
 double GslRandom::gaussDeviate()
 {
-  double ret;
-#pragma omp critical
-  ret = gsl_ran_ugaussian(r);
-  return ret;
+  return gsl_ran_ugaussian(r);
 }
 
 //returns a uniform deviate on the range [a,b]
 double GslRandom::uniformDeviate(double a, double b)
 {
-  double ret;
-#pragma omp critical
-  ret=gsl_ran_flat(r, a, b);
-  return ret;
+  return gsl_ran_flat(r, a, b);
 }
 
 GslRandom::~GslRandom()

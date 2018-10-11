@@ -7,7 +7,6 @@
 #include <cstdio>
 #include <fftw3.h>
 #include <omp.h>
-#include <vector>
 using namespace std;
 
 #include "nr3.h"
@@ -17,6 +16,7 @@ using namespace std;
 #include "gaussFit.h"
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_sort_vector.h>
+#include "GslRandom.h"
 #include "Map.h"
 #include "Telescope.h"
 #include "vector_utilities.h"
@@ -59,39 +59,6 @@ Map::Map(string name, int nr, int nc, double pixsz,
 
   //size the image array and fill with zeros
   image.assign(nrows, ncols, 0.);
-}
-
-
-double Map::select(vector<double> input, int index){
- //Partition input based on a selected pivot
-    //More on selecting pivot later- it's random
-  //you now know the index of the pivot
-  //if that is the index you want, return
-  //else, if it's larger, recurse on the larger partition
-  //if it's smaller, recurse on the smaller partition
-  unsigned int pivotIndex = rand() % input.size();
-  double pivotValue = input[pivotIndex];
-  vector<double> left;
-  vector<double> right;
-  for(unsigned int x = 0; x < input.size(); x++){
-    if(x != pivotIndex){
-      if(input[x] > pivotValue){
-        right.push_back(input[x]);
-      }
-      else{
-        left.push_back(input[x]);
-      }
-    }
-  }
-  if((int) left.size() == index){
-    return pivotValue;
-  }
-  else if((int) left.size() < index){
-    return select(right, index - left.size() - 1);
-  }
-  else{
-    return select(left, index);
-  }
 }
 
 
@@ -159,13 +126,13 @@ bool Map::raDecPhysToIndex(double ra, double dec, int* irow, int* icol)
     \todo Add a position angle to the fit so that we can properly
           measure the ellipticity of the fitted gaussian.
 **/
-double Map::fitToGaussian(VecDoub &pp, VecInt &fixme, VecDoub &fixVals, double *iguess, int deg)
+double Map::fitToGaussian(VecDoub &pp, VecInt &fixme, VecDoub &fixVals, double *iguess)
 {
   //if map is big, make assumption that gaussian is within 
   //40" of center of map, otherwise skip this
   double rowsize = rowCoordsPhys.size()*pixelSize;
   double colsize = colCoordsPhys.size()*pixelSize;
-  double r = (double)(deg)/3600.*TWO_PI/360.;
+  double r = 40./3600.*TWO_PI/360.;
   int minxi=0;
   int maxxi=nrows;
   int minyi=0;
@@ -223,11 +190,9 @@ double Map::fitToGaussian(VecDoub &pp, VecInt &fixme, VecDoub &fixVals, double *
     for(int j=0;j<nptscols;j++){
       az[nptscols*i + j] = rowCoordsPhys[i+minxi];
       el[nptscols*i + j] = colCoordsPhys[j+minyi];
-      m[nptscols*i + j] = (image[i+minxi][j+minyi] == 0.)? 0/0: image[i+minxi][j+minyi];
-//      sigma[nptscols*i + j] = (image[i+minxi][j+minyi] == 0.)? 1e10 : (image[i+minxi][j+minyi] * 0.01);
-
-//      sigma[nptscols*i + j] = (weight[i+minxi][j+minyi] == 0.) ? 1e40 : sqrt(1./weight[i+minxi][j+minyi]);
-        sigma[nptscols*i + j] = (weight[i+minxi][j+minyi] == 0.)? 0/0 : weight[i+minxi][j+minyi];
+      m[nptscols*i + j] = image[i+minxi][j+minyi];
+      sigma[nptscols*i + j] = (weight[i+minxi][j+minyi] == 0.) ?
+    		  	  	  1. : sqrt(1./weight[i+minxi][j+minyi]);
     }
 
   //call the fitter for the map
@@ -310,19 +275,11 @@ double Map::fitToGaussian()
 double Map::fitToGaussian(VecDoub &pp)
 {
   VecInt fixme(7,0);
+  fixme[0]=1;
   VecDoub fixVals(7,0.);
   return fitToGaussian(pp,fixme,fixVals);
 }
 
-
-//----------------------------- o ---------------------------------------
-
-double Map::fitToGaussian(VecDoub &pp, int deg)
-{
-  VecInt fixme(7,0);
-  VecDoub fixVals(7,0.);
-  return fitToGaussian(pp,fixme,fixVals,NULL,deg);
-}
 
 //----------------------------- o ---------------------------------------
 
@@ -337,38 +294,47 @@ double Map::fitToGaussian(VecDoub &pp, int deg)
 bool Map::findWeightThresh()
 {
   //number of elements in map
-  vector<double> og;
-  for(int x = 0; x <nrows; x++){
-    for(int y = 0; y<ncols; y++){
-      if(weight[x][y] > 0.){
-	og.push_back(weight[x][y]);
-      }
-    }
-  }
-  
-  //COVCOV IS THE ORIGINAL UNSORTED VECTOR
-  //COVPRM IS THE NEW SORTED VECTOR
-  
+  int npts = nrows*ncols;
+
+  //using gsl vector sort routines to do the coverage cut
+  //so we need to repack the maps
+  //start with the weight map (keep idl utils nomenclature)
+  gsl_vector* covcov = gsl_vector_alloc(npts);
+  for(int i=0;i<nrows;i++) 
+    for(int j=0;j<ncols;j++)
+      gsl_vector_set(covcov,ncols*i+j,weight[i][j]);
+
+  //sort the weights and keep the indices
+  gsl_permutation* covprm = gsl_permutation_alloc(npts);
+  gsl_sort_vector_index(covprm,covcov);
+
+
   //find the point where 25% of nonzero elements have greater weight
   double covlim;
   int covlimi;
-  covlimi = 0.75* og.size();
-
-	//COVLIMI IS THE INDEX OF THE VALUE THAT HAS 25% OF NONZERO VALUES ABOVE IT
-  covlim = select(og, covlimi);
-	//COVLIM IS THE VALUE AT THE INDEX COVLIMI
-
+  int nNonzero=0;
+  int firstNonzero=0;
+  for(int i=0;i<npts;i++){
+    if(gsl_vector_get(covcov,gsl_permutation_get(covprm,i)) > 0.){
+      firstNonzero = i;
+      break;
+    }
+  }
+  nNonzero = npts-firstNonzero;
+  covlimi = firstNonzero + 0.75*nNonzero;
+  covlim = gsl_vector_get(covcov,gsl_permutation_get(covprm,covlimi));
   double mval;
   double mvali;
-  mvali = floor((covlimi+og.size())/2.);
-	//MVALI IS NOW THE INDEX THAT IS HALFWAY BEWEEN THE NUMBER OF POINTS AND COVLIMI, THE 75% INDEX
-  mval = select(og, mvali);
-  //MVAL IS THE VALUE AT INDEX MVALI
-	
-	//define the weight cut value
+  mvali = floor((covlimi+npts)/2.);
+  mval = gsl_vector_get(covcov,gsl_permutation_get(covprm,mvali));
+
+  //define the weight cut value
   weightCut = coverageCut*mval;
-	//SET WEIGHT CUT TO BE COVERAGECUT THAT WAS PREVIOUSLY DEFINED * MVAL
+
   //done with covcov and covprm
+  gsl_vector_free(covcov);
+  gsl_permutation_free(covprm);
+
   return 1;
 }
 
@@ -476,7 +442,7 @@ bool Map::makeCovBoolMap()
       else{
 	coverageBool[i][j] = 0;
       }
-    }  
+    }
   }
 
   return 1;
@@ -527,7 +493,6 @@ bool Map::calcMapPsd(double covCut)
 	  out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*nx*ny);
 	  p = new fftw_plan;
 	  *p = fftw_plan_dft_2d(nx, ny, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-         // cout << nx << " " << ny << " " << in << " " << out << " " << FFTW_FORWARD << " " << FFTW_ESTIMATE << endl;
   }
 
   //the matrix to get fft'd is cast into vector form in *in;
@@ -712,11 +677,8 @@ bool Map::calcMapPsd(double covCut)
 	  }
   }    
 
-	
   return 1;
 }
-
-
 
 
 //----------------------------- o ---------------------------------------

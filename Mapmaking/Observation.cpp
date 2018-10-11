@@ -17,6 +17,7 @@ using namespace std;
 #include "gaussFit.h"
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_sort_vector.h>
+#include "GslRandom.h"
 #include "Observation.h"
 #include "Telescope.h"
 #include "vector_utilities.h"
@@ -49,6 +50,7 @@ Observation::Observation(AnalParams* analParams)
         weight = NULL;
         inttime = NULL; 
 	saveTimestreams = ap->getSaveTimestreams();
+    fullIntTime=0;
 }
 
 
@@ -734,6 +736,8 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
 	  ncfid.add_att("bsplineControlChunk", ap->getControlChunk());
 	  ncfid.add_att("bsplineStripe", ap->getCleanStripe());
 	  ncfid.add_att("bsplineResampling", ap->getResample());
+	  ncfid.add_att("bsplineMethod", ap->stripeMethod.c_str());
+	  ncfid.add_att("bsplineMask", ap->mask);
 
   }
   ncfid.add_att("pixelSize", ap->getPixelSize());
@@ -741,6 +745,7 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
   ncfid.add_att("MasterGrid[0]",masterGrid[0]);
   ncfid.add_att("MasterGrid[1]",masterGrid[1]);
   ncfid.add_att ("ArrayAvgTau", array->getAvgTau());
+  ncfid.add_att("IntTime", fullIntTime);
  
   cerr << "Observation::writeMapsToNcdf(): Maps written to ";
   cerr << ncdfFilename << endl;
@@ -772,7 +777,8 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
   */
 	//if (atmTemplate)
 		//atmMap->put(&atmTemplate->image[0][0], nrows, ncols);
-	if (saveTimestreams == true){
+	if (saveTimestreams){
+		  //define variables for clean time-streams
 		size_t nDetectors = array->getNDetectors();
 		size_t nSamples = array->getNSamples();
 		size_t nvars = 5;
@@ -780,13 +786,12 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
 		NcDim* dimSamples = ncfid.add_dim ("nSamples", nSamples);
 		NcDim* dimType = ncfid.add_dim ("types", nvars);
 		NcVar* bArray =ncfid.add_var("boloData", ncDouble, dimType, dimDetectors, dimSamples);
-
 		size_t nScans = tel->scanIndex.ncols();
-
 		NcDim* dimScans =ncfid.add_dim("nScans", nScans);
 		NcDim* dimScansLimit = ncfid.add_dim("scanLimit", 2);
 		NcVar* scansVar = ncfid.add_var("scanIndex",ncInt,dimScansLimit,dimScans);
 		Mat3DDoub boloData (nvars, nDetectors, nSamples);
+
 		int * di = array->getDetectorIndices();
 		char buff [100];
 		for (size_t ibolo=0; ibolo< nDetectors; ibolo++){
@@ -802,6 +807,17 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
 		}
 		bArray->put(&boloData[0][0][0], nvars,nDetectors,nSamples);
 		scansVar->put(&tel->scanIndex[0][0], 2, nScans);
+
+		if (array->detectors[di[0]].atmTemplate.size() > 0){
+			NcVar* aArray =ncfid.add_var("atmData", ncDouble, dimDetectors, dimSamples);
+			MatDoub aData(nDetectors, nSamples);
+			for (size_t ibolo=0; ibolo< nDetectors; ibolo++){
+				for (size_t iSample=0; iSample <nSamples; iSample++){
+					aData[ibolo][iSample] = array->detectors[di[ibolo]].atmTemplate[iSample];
+				}
+			}
+			aArray->put(&aData[0][0], nDetectors,nSamples);
+		}
 	}
 
 	//free the memory in the large noiseMaps array
@@ -818,8 +834,6 @@ bool Observation::writeObservationToNcdf(string ncdfFilename)
 // TODO to be implemented
 bool Observation::writeObservationToFits(string fitsFilename)
 {
-
-    (void) fitsFilename;
 	return 1;
 }
 

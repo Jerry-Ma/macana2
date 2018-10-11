@@ -1,7 +1,10 @@
 #ifndef _ANALPARAMS_H_
 #define _ANALPARAMS_H_
 
+#include <string>
+#include "nr3.h"
 
+using namespace std;
 ///AnalParams - All of the analysis parameters and directions
 /** The AnalParams class runs the show.  It contains all of the
     information needed to do the entire analysis, including
@@ -11,8 +14,6 @@
     \todo Make a menu of analysis options to choose from and
     propagate those choices into macana.cpp.
 **/
-#include "SimParams.h"
-#include "GslRandom.h"
 
 class AnalParams
 {
@@ -105,13 +106,6 @@ class AnalParams
   bool lowpassOnly;                   ///only lowpass the maps?
   bool highpassOnly;                  ///only highpass the maps?
   bool normalizeErrors;               ///normalize the weight matrix?
-
-  //Use an alternative kernel?
-  bool altKernel;                    ///should be 1 only for non-standard kernel
-  string kernelName;                 ///name of alternative kernel
-  double coreR0;                     ///characteristic scale for core kernel
-  double coreP;                      ///power law index for core kernel
-  double coreAxisRatio;              ///axis ratio for core kernel
  
   ///Threaded operation parameters
   int nThreads;
@@ -140,14 +134,6 @@ class AnalParams
   double recovS2N;                     ///S/N thresh for recovering synth source
   double recovRadius;                  ///dist. from synth source for recovery
 
-  //Simulation (Map Inserter) parameters
-  SimParams *simParams;
-  string templateFile;
-
-  //Map Subtraction parameters
-  string subtractPath;
-  string subtractFile;
-  bool doSubtract;
 
 
  public:
@@ -155,18 +141,19 @@ class AnalParams
   //A global random number generator to be used throughout macana
   GslRandom* macanaRandom;
 
-  bool subtractFirst;
   ///cleaning PCA parameters
   double cutStd;
   int neigToCut;
+  int icaMode;
 
   ///cleanning Cuttingham method
   double cleanPixelSize;		///Pix size for pointing mat in arcsec
-  int order;				///Spline order
+  int order;					///Spline order
   double cleanStripe;			///Apply large scale resid sustraction
   string stripeMethod;
   double controlChunk;			///Time sep of Bspline control points
   double resample;
+  double mask;
   ///cleaning High Order Atm Template
   int tOrder;
 
@@ -240,13 +227,8 @@ class AnalParams
   int getResample();
   double getFcut();
   double getFalpha();
-  
   double getBeammapSourceFlux();
-  
-  SimParams *getSimParams();
-  string getTemplateFile();
-  string getSubtractFile();
-  bool getDoSubtract();
+
 
   void setOrder (int Order);
   void setNeig2cut (int n2cut);
@@ -266,13 +248,6 @@ class AnalParams
   int getNNoiseMapsPerObs();
   bool getFindSources();
   bool getCalcCompleteness();
-
-  bool getAltKernel();
-  string getKernelName();
-  double getCoreR0();
-  double getCoreP();
-  double getCoreAxisRatio();
-
   ~AnalParams();
 };
 

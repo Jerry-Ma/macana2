@@ -83,10 +83,10 @@ public:
   VecBool dSampleFlags;              ///<pointer to sampleflags on device
   VecDoub dRa;                       ///<pointer to ra values on device
   VecDoub dDec;                      ///<pointer to dec values on device
-  VecDoub azElRa;
-  VecDoub azElDec;
-  VecDoub azElRaPhys;
-  VecDoub azElDecPhys;
+  VecDoub hAz;
+  VecDoub hEl;
+  VecDoub hAzPhys;
+  VecDoub hElPhys;
   VecDoub atmTemplate;
 
   //calibration
@@ -100,7 +100,7 @@ public:
   void initialize(AnalParams* analParams, const char* dId);
   int getNSamples();
   double getSamplerate();
-  bool getBoloValues(double *bData);
+  bool getBoloValues(NcVar * bolo,double *bData);
   bool despike(double nSigmaSpikes);
   bool despike(int nSigmaSpikes, int gpuId);
   bool lowpass(double* digFilterTerms, int nTerms);
@@ -109,14 +109,10 @@ public:
   bool estimateTau();
   bool estimateExtinction(double tau);
   bool calibrate();
-  bool calculateScanWeight(Telescope* tel);
-  void setFcf(double fcf);
-  double calculateSensitivity(Telescope* tel);
-  void calibrateSensitivity();
+  bool calculateScanWeight(Telescope* tel, double mask=0.0);
   bool getPointing(Telescope* tel, TimePlace* tp, Source* source);
   bool getAzElPointing (Telescope *tel);
   bool makeKernelTimestream(Telescope* tel);
-  void addGaussian(MatDoub &params, int detNumber);
   bool setAtmTemplate(VecDoub temp);
   void throwXmlError(string p);
   double getMaxX();

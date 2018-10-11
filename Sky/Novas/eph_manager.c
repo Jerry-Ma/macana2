@@ -14,9 +14,16 @@
    #include "eph_manager.h"
 #endif
 
+#ifndef OMP_H
+	#include <omp.h>
+#endif
+
 /*
    Define global variables
 */
+
+
+
 
 short int KM;
 
@@ -33,6 +40,11 @@ double SS[3], JPLAU, PC[18], VC[18], TWOT, EM_RATIO;
 double *BUFFER;
 
 FILE *EPHFILE = NULL;
+
+#if defined (_OPENMP)
+#pragma omp threadprivate (KM, IPT,LPT, NRL,NP,NV, RECORD_LENGTH, SS, JPLAU,PC, VC, TWOT, EM_RATIO, BUFFER, EPHFILE)
+#endif
+
 
 /********ephem_open */
 

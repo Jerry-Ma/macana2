@@ -1,5 +1,6 @@
 #ifndef _MAP_H_
 #define _MAP_H_
+
 #include "nr3.h"
 #include "AnalParams.h"
 #include "Array.h"
@@ -63,9 +64,8 @@ class Map
   bool calcMapPsd(double covCut);
   bool calcMapHistogram(int nbins, double covCut);
   bool calcMapHistogram();
-  double fitToGaussian(VecDoub &params, VecInt &fixme, VecDoub &fixVals, double *iguess=NULL, int deg=40);
+  double fitToGaussian(VecDoub &params, VecInt &fixme, VecDoub &fixVals, double *iguess=NULL);
   double fitToGaussian(VecDoub &params);
-  double fitToGaussian(VecDoub &params, int deg);
   double fitToGaussian();
   bool writeMapToNcdf();
   bool writeMapsToNcdf(string mapFilename);
@@ -89,7 +89,6 @@ class Map
   int getCutXRangeHigh();
   int getCutYRangeLow();
   int getCutYRangeHigh();
-	double select(vector<double> input, int index);
   ~Map();
 };
 

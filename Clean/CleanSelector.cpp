@@ -1,4 +1,11 @@
+#include "AnalParams.h"
 #include "CleanSelector.h"
+#include "Clean.h"
+#include "CleanPCA.h"
+#include "CleanBspline.h"
+#include "CleanHigh.h"
+#include "CleanIterativeMean.h"
+
 
 Clean * CleanSelector::getCleaner(Array *dataArray, Telescope *telescope){
   AnalParams *ap = dataArray->getAp();
@@ -30,10 +37,12 @@ Clean * CleanSelector::getCleaner(Array *dataArray, Telescope *telescope){
 		printErrorMessage("Incorrect value for high order atmosphere template cleaning. Must be <=3.");
 		exit(-1);
 	}else{
-		cout<<"CleanSelector(): Selected High Order Atmosphere Template Subtraction for Cleaning" <<endl;
-		return new CleanHigh(dataArray,telescope);
+		cout<<"CleanSelector(): Selected Iterative Mean Subtraction for Cleaning" <<endl;
+		return new CleanIterativeMean(dataArray,telescope);
 	}
   }else{
+
+
 	  if (ap->getCutStd() > 0 && ap->getNeigToCut() >0){
 		  printErrorMessage("Cannot set cutStd > 0 and neigToCut > 0.");
 		  exit(-1);
@@ -51,12 +60,5 @@ void CleanSelector::printErrorMessage(const char* message){
 	  cerr<<"\tPlease check analysis parameters xml file"<<endl;
 	  cerr<<"\tProgram Aborted"<<endl;
 	  cerr<<"\t-------------------------------------------------------"<<endl;
-}
-
-Clean2dStripe * CleanSelector::getMapCleaner(Map *cmap, AnalParams *ap){
-	if (ap->getOrder() > 0){
-		return new Clean2dStripe(cmap);
-	}
-	return NULL;
 }
 

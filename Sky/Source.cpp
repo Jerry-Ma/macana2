@@ -132,6 +132,9 @@ bool Source::getLMTSourceData()
 bool Source::getASTESourceData()
 {
 	//open the datafile
+	double t1, t2, t3;
+	double sra;
+	double sdec;
 #pragma omp critical (dataio)
 	{
 		NcFile ncfid(dataFile, NcFile::ReadOnly);
@@ -153,9 +156,9 @@ bool Source::getASTESourceData()
 		string rastr = tmpstr;
 		delete [] tmpstr;
 		rastr = rastr.substr(0,rastr.length());
-		double t1, t2, t3;
+
 		parseRaDecString(rastr, &t1, &t2, &t3);
-		double sra = (t1+t2/60.+t3/3600.)/24.*TWO_PI;
+		sra = (t1+t2/60.+t3/3600.)/24.*TWO_PI;
 		NcAtt* decAtt = ncfid.get_att("aste_header_SrcPosY");
 		tmpstr = decAtt->as_string(0);
 		string decstr = tmpstr;
@@ -163,8 +166,15 @@ bool Source::getASTESourceData()
 		decstr = decstr.substr(0,decstr.length());
 		parseRaDecString(decstr, &t1, &t2, &t3);
 		double st1 = (t1 < 0) ? -1. : 1;
-		double sdec = st1*(abs(t1)+t2/60.+t3/3600.) / DEG_RAD;
+		sdec = st1*(abs(t1)+t2/60.+t3/3600.) / DEG_RAD;
 
+		delete nameAtt;
+		delete raAtt;
+		delete decAtt;
+
+		//close the dataFile
+		ncfid.close();
+	}
 		hSourceRa.resize(nSamples);
 		hSourceDec.resize(nSamples);
 		for(int i=0;i<nSamples;i++){
@@ -186,13 +196,7 @@ bool Source::getASTESourceData()
 			ap->setMasterGridJ2000(sra,sdec);
 		}
 
-		delete nameAtt;
-		delete raAtt;
-		delete decAtt;
 
-		//close the dataFile
-		ncfid.close();
-	}
 	return 1;
 }
 

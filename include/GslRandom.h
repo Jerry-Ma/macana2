@@ -14,7 +14,8 @@ class GslRandom
 
  public:
   GslRandom();
-  GslRandom(long seed);
+  void reseed (long seed);
+  long getSeed ();
   double gaussDeviate();    //returns a gaussian deviate with variance 1
   double uniformDeviate(double a, double b);  //uniform deviate on [a,b]
   ~GslRandom();

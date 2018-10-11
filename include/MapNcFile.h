@@ -17,12 +17,14 @@ class MapNcFile{
 		double raMin;
 		double decMax;
 		double decMin;
+		double pixSize;
 		void init();
 		void setLimits();
 	public:
 		MapNcFile(string filename);
 		VecDoub mapSignal(VecDoub rapoint, VecDoub decpoint);
 		VecDoub fastMapSignal (VecDoub rapoint, VecDoub decpoint);
+		//VecDoub interpd2dSignal (VecDoub rapoint, VecDoub decpoint);
 		~MapNcFile();
 };
 

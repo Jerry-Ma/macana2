@@ -18,6 +18,7 @@ using namespace std;
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_math.h>
+#include "GslRandom.h"
 #include "Coaddition.h"
 #include "Telescope.h"
 #include "vector_utilities.h"
@@ -56,6 +57,9 @@ Coaddition::Coaddition(AnalParams* analParams)
   //initialize nrows and ncols
   nrows=0;
   ncols=0;
+
+  totalIntTime=0;
+  totalFiles = 0;
 }
 
 
@@ -81,6 +85,7 @@ bool Coaddition::coaddMaps()
   double maxRowVal=0., maxColVal=0.;
   string sourceNameString;
   individualMapsTau.resize(nFiles);
+  totalFiles = nFiles;
   for(int i=0;i<nFiles;i++){
     NcFile ncfid = NcFile(ap->getMapFileList(i).c_str(), NcFile::ReadOnly);
     NcDim* rowDimVar = ncfid.get_dim("nrows");
@@ -92,6 +97,7 @@ bool Coaddition::coaddMaps()
     NcAtt* sourceName = ncfid.get_att("source");
 
     individualMapsTau[i] = ncfid.get_att("ArrayAvgTau")->as_double(0);
+    totalIntTime += ncfid.get_att("IntTime")->as_double(0);
 
     //find minimum and maximum row and column values
     NcVar* rcpv = ncfid.get_var("rowCoordsPhys");
@@ -421,14 +427,17 @@ bool Coaddition::writeCoadditionToNcdf()
   ncfid.add_att("timeChunk", ap->getTimeChunk());
   ncfid.add_att("neigToCut", ap->getNeigToCut());
   ncfid.add_att("cutStd", ap->getCutStd());
+  ncfid.add_att("icamode", ap->icaMode);
   ncfid.add_att("pixelSize", ap->getPixelSize());
   if (ap->getOrder()>0){
-	  ncfid.add_att("bsplineOrder", ap->getOrder());
-	  ncfid.add_att("bsplineControlChunk", ap->getControlChunk());
-	  ncfid.add_att("bsplineStripe", ap->getCleanStripe());
-	  ncfid.add_att("bsplineResampling", ap->getResample());
+ 	  ncfid.add_att("bsplineOrder", ap->getOrder());
+ 	  ncfid.add_att("bsplineControlChunk", ap->getControlChunk());
+ 	  ncfid.add_att("bsplineStripe", ap->getCleanStripe());
+ 	  ncfid.add_att("bsplineResampling", ap->getResample());
+ 	  ncfid.add_att("bsplineMethod", ap->stripeMethod.c_str());
+ 	  ncfid.add_att("bsplineMask", ap->mask);
 
-  }
+   }
   ncfid.add_att("approximateWeights", ap->getApproximateWeights());
   ncfid.add_att("MasterGrid[0]",masterGrid[0]);
   ncfid.add_att("MasterGrid[1]",masterGrid[1]);
@@ -473,6 +482,8 @@ bool Coaddition::writeCoadditionToNcdf()
   }
 
   ncfid.add_att("coaddAvgTau", coaddAvgTau);
+  ncfid.add_att("nDataFiles", totalFiles);
+  ncfid.add_att("totalIntTime", totalIntTime);
   cerr << "Coaddition::writeMapsToNcdf(): Maps written to ";
   cerr << ncdfFile << endl;
 
@@ -495,7 +506,7 @@ bool Coaddition::writeCoadditionToNcdf()
 bool Coaddition::writeCoadditionToFits(string fitsFilename)
 {
 
-  (void) fitsFilename;
+
   return 1;
 }
 
@@ -605,6 +616,20 @@ bool Coaddition::writeFilteredMapsToNcdf()
   return 1;
 }
 
+///writes Average Noise Maps RMS into coadded file
+/** Writes the average noise value from noise simulations into the coadded file
+**/
+bool Coaddition::writeNoiseRMSToNcdf(double noise){
+	  NcFile ncfid = NcFile(ap->getCoaddOutFile().c_str(), NcFile::Write);
+	  if (!ncfid.is_valid()){
+	    cerr << "Couldn't open " << ap->getCoaddOutFile() << " for writing.";
+	    cerr << endl;
+	    exit(1);
+	  }
+
+	  ncfid.add_att("AverageRMS",noise);
+	return true;
+}
 
 //----------------------------- o ---------------------------------------
 
@@ -622,7 +647,6 @@ bool Coaddition::writeFilteredMapsToNcdf()
 bool Coaddition::findSources(double* signalMap, double* s2nMap,
 			     Coaddition* realCoadd, double maxS2N)
 {
-  (void) s2nMap;
   //needs to go when Wiener filter is done
   maxPreS2N = maxS2N;
 

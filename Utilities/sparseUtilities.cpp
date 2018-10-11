@@ -7,10 +7,7 @@ using namespace std;
 
 CS_INT cs_nonfinite (CS_INT i, CS_INT j, CS_ENTRY aij, void *other)
 {
-    (void) i;
-    (void) j;
-    (void) other;
-    CS_INT res = isfinite(aij);
+	CS_INT res = finite(aij);
 	if (!res){
 		cerr<<"Detected a NaN value  on sparse matrix"<<endl;
 		exit(-1);

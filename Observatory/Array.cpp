@@ -16,6 +16,7 @@ using namespace std;
 #include "AnalParams.h"
 #include "Array.h"
 #include "Detector.h"
+#include "GslRandom.h"
 #include "vector_utilities.h"
 #include "SBSM.h"
 
@@ -47,12 +48,11 @@ int samplerate;
 
   //get nDetectors: ie, count those with goodFlag=1
   const char* tmp;
+  tinyxml2::XMLElement *xtmp;
+  int nBolos;
   tmp = bolostats.FirstChildElement("nBolos")->
     FirstChildElement("value")->GetText();
   nBolos = atol(tmp);
-
-  //initialize list of detector names
-  detectorNames = new string[nBolos];
 
   //count up those with goodFlag=1
   int count=0;
@@ -62,15 +62,21 @@ int samplerate;
   for(int i=0;i<nBolos;i++){
     n = sprintf(dId, "d%d",i);
     //check the vale of goodFlag
-    tmp = bolostats.FirstChildElement(dId)->
-      FirstChildElement("goodflag")->
-      FirstChildElement("value")->GetText();
+    xtmp = bolostats.FirstChildElement(dId);
+    if (!xtmp){
+    	cerr<<"Detector "<<dId << " not found in bstats file. Please Check"<<endl;
+    }
+    xtmp = xtmp->FirstChildElement("goodflag");
+    if (!xtmp){
+        	cerr<<"Detector "<<dId << " good flag not found in bstats file. Please Check"<<endl;
+       }
+    xtmp =xtmp->FirstChildElement("value");
+    if (!xtmp){
+        	cerr<<"Detector "<<dId << " good flag value not found in bstats file. Please Check"<<endl;
+    }
+    tmp = xtmp->GetText();
     goodFlag = (strcmp(tmp,"1") == 0) ? 1 : 0;
     if(goodFlag) count++;
-    detectorNames[i] = bolostats.FirstChildElement(dId)->
-      FirstChildElement("name")->
-      FirstChildElement("value")->GetText();
-    detectorNames[i] = detectorNames[i].substr(18,10);
   }
   nDetectors = count;
   cerr << "Array:: Found " << nDetectors;
@@ -247,7 +253,7 @@ bool Array::fakeFlaggedData(Telescope* telescope)
       }
     }
     if(nFlagged > 0.5*nDetectors){
-      cerr << "Array::fakeFlaggedData(): scan #" << k;
+      cerr << "Array::fakeFlaggedData(): scan #" << k << "of file "<< ap->getDataFile();
       cerr << " has fewer than 50% of the detectors flag-free." << endl;
       cerr << "Using entire array (with spikes included) as sky model.";
       cerr << endl;
@@ -455,6 +461,9 @@ bool Array::fakeFlaggedData(Telescope* telescope)
 	  //add noise to the fake signal
 	  meanStdDev *= detectors[di[i]].responsivity;   //put back in volts
 
+	  //GslRandom ran;
+	  //for(int l=0;l<nFlags;l++) fake[l] += ran.gaussDeviate()*meanStdDev;
+
 	  //replace detector values with fake signal
 	  for(int l=0;l<nFlags;l++)
 	    detectors[di[i]].hValues[siFlags[j]+l] = fake[l];
@@ -538,8 +547,7 @@ bool Array::updateDetectorIndices()
   tau/=dcount;
   nDetectors = dcount;
   detectorInd.resize(dcount);
-  for(int i=0;i<dcount;i++) detectorInd[i]=t[i];
-
+  for(int i=0;i<dcount;i++) { detectorInd[i]=t[i]; }
   updateRefBoloIndex();
   return 1;
 }
@@ -593,10 +601,10 @@ AnalParams* Array::getAp(){
 
 bool Array::fakeAtmData(bool addToKernel) {
 
-	double atmFreq= 0.05;
+	double atmFreq= 0.5;
 	size_t nb;
 	this->updateDetectorIndices();
-
+	cout<<"Array(): Creating Fake Atm Data"<<endl;
 	int *di = getDetectorIndices();
 	nb  = size_t(round(detectors[di[0]].getNSamples()/detectors[di[0]].getSamplerate()*atmFreq));
 	SBSM *bspline = new SBSM(4,nSamples, nb);
@@ -621,14 +629,26 @@ double Array::getAvgTau() {
 
 void Array::updateRefBoloIndex() {
 	string signalName ="h2b2";
+	int tmpPos = -1;
 	if (ap->getObservatory() == "LMT")
 		signalName = "Data.AztecBackend." + signalName;
 	for (size_t i=0; i< detectorInd.size(); i++){
 		if (detectors[detectorInd[i]].getName() == signalName){
-			refBoloIndex=i;
+			tmpPos=i;
 			break;
 		}
 	}
+	if (tmpPos != -1){
+		signalName = "Data.MuscatBackend.Bolo0000";
+		for (size_t i=0; i< detectorInd.size(); i++){
+			if (detectors[detectorInd[i]].getName() == signalName){
+				tmpPos=i;
+				break;
+			}
+		}
+	}
+
+	this->refBoloIndex=(size_t) tmpPos;
 
 }
 

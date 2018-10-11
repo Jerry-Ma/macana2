@@ -178,6 +178,10 @@ C ********************************************************************/
   static double zeta0, theta, z, ct, st;
   double t0, t1, t2, t, sr0, cr0, sd0, cd0, cdsr1, cdcr1, sd1;
 
+#if defined (_OPENMP)
+#pragma omp threadprivate (tlast,t0last, zeta0, theta, z, ct, st)
+#endif
+
   //  T0 =  TIME FROM 2000.00 TO JULIAN EPOCH IN JULIAN CENTURIES.
   t0 = (epoch - 2000.0) / 100.0;
 
@@ -364,15 +368,15 @@ bool azElToRaDec2000(TimePlace *timePlace,
     double ra1=raAct[i]*DEG_RAD/360.*24.;
     double dec1=decAct[i]*DEG_RAD;
     double jd_utc, jd_tt;
-#pragma omp critical(novas)
-{
+//#pragma omp critical(novas)
+//{
     jd_utc = julian_date(timePlace->year, timePlace->month, 
 			 timePlace->day, 
 			 timePlace->detUtc[i]+timePlace->timeOffset);
     jd_tt = jd_utc + ((double)leap_secs + 32.184) / 86400.0;
 
     ms = mean_star(jd_tt, ra1, dec1, 1, &ra[i], &dec[i]);
-}
+//}
     if(ms){
       cerr << "azElToRaDec2000(): Problem with mean_star(): ms=" << ms << endl;
       exit(1);
@@ -391,8 +395,8 @@ bool azElToRaDec2000(TimePlace *timePlace,
 bool raDecToAzEl(TimePlace *timePlace,
 		 double* ra, double* dec, double* az, double* el, int nSamples)
 {
-#pragma omp critical (novas)
-{
+//#pragma omp critical (novas)
+//{
   //open the ephemeris calculation for NOVAS
   double jd_beg, jd_end;
   short int de_num=0, error;
@@ -469,7 +473,7 @@ bool raDecToAzEl(TimePlace *timePlace,
     az[i] = azd / DEG_RAD;
     el[i] = (90.-zd) / DEG_RAD;
   }
-}
+//}
   return 1;
 }
 

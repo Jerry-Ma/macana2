@@ -3,6 +3,7 @@
 
 
 #include <gsl/gsl_rng.h>
+#include <string>
 
 #include "MapNcFile.h"
 
@@ -17,16 +18,20 @@ class SimulatorInserter{
 		void createNoiseGenerator();
 		void deleteNoiseGenerator();
 		VecDoub createNoiseSignal(Detector det);
+		string dumpToDir;
 	protected:
 		double atmFreq;
+		double resample;			//Use a bspline to resample interpolated signals
 		double noiseChunk;
 		double fluxFactor;
+		long seed;
 		bool sigOnly;
 		Array *arr;
 		MapNcFile *map;
 		//Noise
 		gsl_rng *r;
 		bool isTemp;
+		long atmSeed;
 		bool interpolateMapSignals(Detector *di);
 
 	public:

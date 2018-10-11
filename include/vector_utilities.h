@@ -4,22 +4,25 @@
 //#include <gsl/gsl_matrix.h>
 #include "nr3.h"
 #include <iostream>
+//#include <gsl/gsl_matrix.h>
 
 
 
-double select(vector<double> input, int index);
+
 double mean(double* arr, int nSamp);
 double mean(double* arr, bool *flags, int nSamp);
 double mean(VecDoub &arr);
 double mean(VecDoub &arr, VecBool &flags);
 double mean(VecDoub &arr, int start, int end);
 double mean(VecDoub &arr, VecBool &flags, int start, int end, double *ncount = NULL);
+double mean(double *arr, double *flags, int start, int end, double *ncount = NULL);
 double mean(double *arr, int start, int end);
 double stddev(double* arr, int nSamp, double mn);
 double stddev(VecDoub &arr);
-double sttdev(VecDoub &arr, VecBool & flags);
+double stddev(VecDoub &arr, VecBool &flags);
 double stddev(VecDoub &arr, int start, int end);
 double stddev(VecDoub &arr, VecBool &flags, int start, int end, double *ncount = NULL);
+double stddev(double *arr, double *flags, int start, int end, double *ncount = NULL);
 double medabsdev(VecDoub &arr);
 double median (double*arr, size_t nSamp);
 double median (double *data, bool *flags, size_t nSamp);
@@ -53,6 +56,7 @@ VecDoub* derivate (VecDoub x, VecDoub y);
 VecDoub* getAngle (VecDoub x, VecDoub y);
 bool writeMatDoubToNcdf(MatDoub &mat, string ncdfFilename);
 bool writeVecDoubToNcdf(VecDoub &vec, string ncdfFilename);
+//bool writeMatOut(const char* outFile, gsl_matrix *outMat);
 void convolve (double *data, size_t nData, double *kernel, bool first);
 double findWeightThreshold(MatDoub &myweight, double cov);
 double linfit_flags (const double *x, const bool *flagsx, const double *y, const bool *flagsy, size_t nSamples, double *c0, double *c1, bool useMpfit);
