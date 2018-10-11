@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
-     <widget class="QCustomPlot" name="widget" native="true"/>
+     <widget class="QCustomPlot" name="canvas" native="true"/>
     </item>
    </layout>
   </widget>
@@ -66,9 +66,26 @@
     <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents">
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <widget class="QTreeView" name="treeView"/>
+      <widget class="QComboBox" name="obsComboBox"/>
+     </item>
+     <item>
+      <widget class="QTreeView" name="obsTreeView">
+       <property name="alternatingRowColors">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QTreeView" name="apXmlTreeView">
+       <property name="alternatingRowColors">
+        <bool>true</bool>
+       </property>
+       <property name="indentation">
+        <number>10</number>
+       </property>
+      </widget>
      </item>
     </layout>
    </widget>
@@ -91,6 +108,9 @@
    <extends>QWidget</extends>
    <header>qcustomplot/qcustomplot.h</header>
    <container>1</container>
+   <slots>
+    <signal>mouseMove(QMouseEvent*)</signal>
+   </slots>
   </customwidget>
  </customwidgets>
  <resources/>
@@ -127,9 +147,60 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>MainWindow</sender>
+   <signal>apLoaded(bool)</signal>
+   <receiver>actionBeammap</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>511</x>
+     <y>383</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>-1</x>
+     <y>-1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>obsComboBox</sender>
+   <signal>currentIndexChanged(int)</signal>
+   <receiver>MainWindow</receiver>
+   <slot>setObservation(int)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>139</x>
+     <y>93</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>511</x>
+     <y>383</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>canvas</sender>
+   <signal>mouseMove(QMouseEvent*)</signal>
+   <receiver>MainWindow</receiver>
+   <slot>showStatus(QMouseEvent*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>652</x>
+     <y>393</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>511</x>
+     <y>383</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
+  <signal>apLoaded(bool)</signal>
   <slot>openApXml()</slot>
   <slot>runBeammap()</slot>
+  <slot>setObservation(int)</slot>
+  <slot>showStatus(QMouseEvent*)</slot>
  </slots>
 </ui>

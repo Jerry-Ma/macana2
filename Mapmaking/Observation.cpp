@@ -81,6 +81,7 @@ bool Observation::generateBeammaps(Array* a, Telescope* tel)
   //allocate space for the maps
   beammapSignal.resize(nDetectors, nrows*ncols);
   beammapWeight.resize(nDetectors, nrows*ncols);
+  beammapIntTime.resize(nDetectors, nrows*ncols);
 
   for(int i=0;i<nDetectors;i++){
     for(int j=0;j<nrows*ncols;j++){
@@ -116,6 +117,7 @@ bool Observation::generateBeammaps(Array* a, Telescope* tel)
           }
 
           beammapSignal[i][irow*ncols+icol] += hx;
+          beammapIntTime[i][irow*ncols+icol] += 1./64.;
           times[irow][icol]++;
         }
       }

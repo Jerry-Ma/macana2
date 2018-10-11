@@ -131,6 +131,14 @@ int main(int nArgs, char* args[])
     int cap = ap->getCleanIterationCap();
     double cutOff = ap->getCleanIterationCutoff();
 
+    // generate original map before cleaning
+    Observation* obs = new Observation(ap);
+    obs->generateMaps(array, telescope);
+    string mapFile = ap->getOutBeammapNcdf();
+    mapFile.replace(mapFile.end() - 5, mapFile.end(), "_noclean.nc");
+    obs->writeObservationToNcdf(mapFile);
+//          obs->writeBeammapsToFits(mapFile);
+
     //begin the iterative cleaning
     while(iteration < cap){
       cerr << "file number: " << fileNum << endl; 

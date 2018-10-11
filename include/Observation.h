@@ -46,6 +46,7 @@ class Observation
   MatDoub noiseMaps;           ///<array of noise map for each observaiton
   MatDoub beammapSignal;       ///<array of detector beammap signal values
   MatDoub beammapWeight;       ///<array of detector beammap weight values
+  MatDoub beammapIntTime;      ///<array of detector beammap inttime values
   Map* atmTemplate;
 
   //absolute coordinates
