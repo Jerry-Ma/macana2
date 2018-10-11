@@ -71,7 +71,9 @@ void MainWindow::openApXml(QString fp)
                 ui->obsComboBox->setRootModelIndex(obsindex);
                 ui->obsComboBox->blockSignals(false); // let go
                 ui->obsComboBox->setCurrentIndex(0);
-                // delete apXml;  // cleanup the old model
+                if (apXml != nullptr) {
+                    delete apXml;  // cleanup the old model
+                }
                 apXml = model;
             }
             fo.close();
