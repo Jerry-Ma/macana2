@@ -488,7 +488,7 @@ bool Array::findMinMaxXY()
   double tmpmnx = detectors[di[0]].getMinX();
   double tmpmny = detectors[di[0]].getMinY();
 
-  for(int i=1;i<nDetectors;i++){
+  for(int i=0;i<nDetectors;i++){
     if(detectors[di[i]].getMaxX() > tmpmxx) tmpmxx=detectors[di[i]].getMaxX();
     if(detectors[di[i]].getMinX() < tmpmnx) tmpmnx=detectors[di[i]].getMinX();
     if(detectors[di[i]].getMaxY() > tmpmxy) tmpmxy=detectors[di[i]].getMaxY();

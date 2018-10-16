@@ -862,7 +862,8 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
   fileList = new string [nFiles];
   bstatList = new string [nFiles];
   mapFileList = new string [nFiles];
-  bsOffsetList.resize(2,nFiles);
+  // fix map too big error!
+  bsOffsetList.assign(2,nFiles, 0);
   beammapSourceFluxList.resize(nFiles);
   char fId[20];
   //int n;
