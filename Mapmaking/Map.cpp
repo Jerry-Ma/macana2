@@ -159,6 +159,61 @@ bool Map::raDecPhysToIndex(double ra, double dec, int* irow, int* icol)
     \todo Add a position angle to the fit so that we can properly
           measure the ellipticity of the fitted gaussian.
 **/
+double Map::fitToGaussianMasked(VecDoub &pp, VecInt &fixme, VecDoub &fixVals, double *iguess, int deg)
+{
+    //if map is big, make assumption that gaussian is within
+    //40" of center of map, otherwise skip this
+    double rowsize = rowCoordsPhys.size() * pixelSize;
+    double colsize = colCoordsPhys.size() * pixelSize;
+    double r = static_cast<double>(deg)/3600. * TWO_PI/360.;
+    int minxi = 0;
+    int maxxi=nrows;
+    int minyi=0;
+    int maxyi=ncols;
+    double medianRcp = median(rowCoordsPhys);
+    double medianCcp = median(colCoordsPhys);
+    if(rowsize > 2*r || colsize > 2*r){
+        double minx = max(medianRcp-r,rowCoordsPhys[0]);
+        double maxx = min(medianRcp+r,rowCoordsPhys[nrows-1]);
+        double miny = max(medianCcp-r,colCoordsPhys[0]);
+        double maxy = min(medianCcp+r,colCoordsPhys[ncols-1]);
+
+        //find corresponding indices for min and max in each dimension
+        for(int i=0;i<nrows;i++){
+            if(rowCoordsPhys[i] >= minx){
+                minxi=i;
+                break;
+            }
+        }
+        for(int i=0;i<nrows;i++){
+          if(rowCoordsPhys[i] <= maxx){
+            maxxi=i;
+          } else {
+              break;
+          }
+        }
+        for(int i=0;i<ncols;i++){
+          if(colCoordsPhys[i] >= miny){
+            minyi=i;
+            break;
+          }
+        }
+        for(int i=0;i<ncols;i++){
+          if(colCoordsPhys[i] <= maxy){
+            maxyi=i;
+          } else {
+              break;
+          }
+        }
+    } else {
+        minxi = 0;
+        maxxi = rowCoordsPhys.size()-1;
+        minyi = 0;
+        maxyi = colCoordsPhys.size()-1;
+    }
+
+    return 0.0;
+}
 double Map::fitToGaussian(VecDoub &pp, VecInt &fixme, VecDoub &fixVals, double *iguess, int deg)
 {
   //if map is big, make assumption that gaussian is within 

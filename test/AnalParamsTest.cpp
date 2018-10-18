@@ -26,9 +26,4 @@ TEST_F(AnalParamsTest, AnalParamsGetNFiles) {
   EXPECT_EQ(ap->getNFiles(), 1);
 }
 
-TEST(testcase, testset)
-{
-    EXPECT_EQ(1, 1);
-}
-
 }  // namespace

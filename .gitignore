@@ -75,4 +75,5 @@ Thumbs.db
 trunk/
 CMakeLists.txt.user
 build/
+qtbuild/
 VERSION

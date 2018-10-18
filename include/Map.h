@@ -63,7 +63,8 @@ class Map
   bool calcMapPsd(double covCut);
   bool calcMapHistogram(int nbins, double covCut);
   bool calcMapHistogram();
-  double fitToGaussian(VecDoub &params, VecInt &fixme, VecDoub &fixVals, double *iguess=NULL, int deg=40);
+  double fitToGaussianMasked(VecDoub &params, VecInt &fixme, VecDoub &fixVals, double *iguess=nullptr, int deg=40);
+  double fitToGaussian(VecDoub &params, VecInt &fixme, VecDoub &fixVals, double *iguess=nullptr, int deg=40);
   double fitToGaussian(VecDoub &params);
   double fitToGaussian(VecDoub &params, int deg);
   double fitToGaussian();

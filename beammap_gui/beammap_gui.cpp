@@ -74,21 +74,29 @@ void MainWindow::openApXml(const QString& path)
                     ).at(0);
             ui->obsComboBox->setRootModelIndex(obsindex);
             ui->obsComboBox->blockSignals(false); // let go the signal
+            // apply changes to class members
+            delete apXml; // get rid of the old ap dommodel
+            apXml = m;  // and store the new ap dommodel
+            apXmlPath = path;  // and store the current path
             // try setup macana
             try {
                 qDebug() << "initialize macana core from" << path;
                 mAnalParams = std::make_unique<AnalParams>(path.toStdString(), 1);
-                // succeded, now update the class members
-                delete apXml; // get rid of the old ap dommodel
-                apXml = m;  // and store the new ap dommodel
-                apXmlPath = path;  // and store the current path
                 qDebug() << "number of observations:" << mAnalParams->getNFiles();
                 qDebug() << "macana core initialized";
                 // set the current observation to the first in the list
                 // this will trigger the observation initialization
                 ui->obsComboBox->setCurrentIndex(obsId);  // default to the first observation
+                // restore the views' look
+                ui->apXmlTreeView->setPalette(QApplication::palette(ui->apXmlTreeView));
             } catch (const AnalParamsError& error) {
                 qDebug() << "failed to initialize macana core:" << error.what();
+                // reset the core to null
+                mAnalParams.reset(nullptr);
+                // taint the view with red
+                // QPalette p(ui->apXmlTreeView->palette());
+                // p.setColor( QPalette::Base, Qt::red);
+                // ui->apXmlTreeView->setPalette(p);
             }
         }
         fo.close();
@@ -113,7 +121,7 @@ void MainWindow::setObsId(int idx)
     // set the obs tree view to current obs
     ui->obsTreeView->setRootIndex(i);
     DomItem* item = static_cast<DomItem*>(i.internalPointer());
-    qDebug() << "work on file #" << obsId
+    qDebug() << "select observation file #" << obsId
              << ui->obsComboBox->currentText()
              << item->node().firstChildElement().text();
     initializeObservation();
@@ -122,6 +130,10 @@ void MainWindow::setObsId(int idx)
 
 void MainWindow::initializeObservation()
 {
+    if (!mAnalParams) {
+        qDebug() << "observation is not initialized because macana core is not initialized";
+        return;
+    }
     qDebug() << "initialize observation #" << obsId;
     mAnalParams->setDataFile(obsId);
     // create an Array object
