@@ -54,9 +54,9 @@
 
   <!-- observation filelist -->
   <observations>
-    <rawDataPath>/data/vishnu/aztec_c++/</rawDataPath>
-    <bsPath>/data/vishnu/aztec_c++/</bsPath>
-    <mapPath>/data/vishnu/aztec_c++/</mapPath>
+    <rawDataPath>./</rawDataPath>
+    <bsPath>./</bsPath>
+    <mapPath>./</mapPath>
 
   <nFiles> 1 </nFiles>
     <f0>

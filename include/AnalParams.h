@@ -14,6 +14,27 @@
 #include "SimParams.h"
 #include "GslRandom.h"
 
+#include <stdexcept>
+
+class AnalParamsError : public std::runtime_error
+{
+public:
+    AnalParamsError(const char* what = nullptr);
+    AnalParamsError(const string& what);
+    ~AnalParamsError();
+};
+
+/*
+template <typename T>
+T getXmlValue (const tinyxml2::XMLElement* xml, const char*, tinyxml2::XMLElement* tmp)
+{
+    xtmp
+    if constexpr (std::is_same<T, double>) {
+        return atof(xml->GetText())
+    }
+}
+*/
+
 class AnalParams
 {
  protected:
@@ -175,7 +196,7 @@ class AnalParams
   AnalParams(AnalParams *ap);
   bool setDataFile(int index);
   bool determineObservatory();
-  void throwXmlError(string p);
+  [[noreturn]] void throwXmlError(string p);
   string getObservatory();
   string getTimeVarName();
   const char* getDataFile();

@@ -1,23 +1,19 @@
+#include <gtest/gtest.h>
+// #include <gmock/gmock-matchers.h>
+
 #include "AnalParams.h"
-#include "gtest/gtest.h"
 
 namespace {
 
-// The fixture for testing class Foo.
-class AnalParamsTest : public ::testing::Test {
+class AnalParamsTest : public ::testing::Test
+{
 protected:
-  AnalParamsTest() {
-      ap = new AnalParams(apXmlFile);
-  }
-  ~AnalParamsTest() override {
-      delete ap;
-  }
-
-  void SetUp() override {}
-  void TearDown() override {}
-
-  std::string apXmlFile = "test/data/test_ap.xml";
-  AnalParams* ap = nullptr;
+    AnalParamsTest(): ap(new AnalParams(apXmlFile, 1)) {}
+    ~AnalParamsTest() override {delete ap;}
+    void SetUp() override {}
+    void TearDown() override {}
+    std::string apXmlFile = "data/test_apb.xml";
+    AnalParams* ap = nullptr;
 };
 
 // AnalParams Constructor
@@ -30,9 +26,9 @@ TEST_F(AnalParamsTest, AnalParamsGetNFiles) {
   EXPECT_EQ(ap->getNFiles(), 1);
 }
 
-}  // namespace
-
-int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+TEST(testcase, testset)
+{
+    EXPECT_EQ(1, 1);
 }
+
+}  // namespace

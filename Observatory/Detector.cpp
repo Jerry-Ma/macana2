@@ -1016,7 +1016,7 @@ bool Detector::getPointing(Telescope* tel, TimePlace* tp, Source* source)
   //start by rotating offsets by elevation angle to
   //counteract field rotation
 
-  if(1){
+ // if(1){
     VecDoub raOff(nSamples);
     VecDoub decOff(nSamples);
     double* bsOffset = ap->getBsOffset();
@@ -1053,9 +1053,9 @@ bool Detector::getPointing(Telescope* tel, TimePlace* tp, Source* source)
 	hDec[i] = elOfftmp*RAD_ASEC + decPhys[i];
       }
     }
-  }//elegant approach
+//  }//elegant approach
 
-
+/*
   if(0){
     //here's the brute force approach
     double* saz = &source->hSourceAz[0];
@@ -1085,7 +1085,7 @@ bool Detector::getPointing(Telescope* tel, TimePlace* tp, Source* source)
     absToPhys(&hRa[0], &hDec[0], centerRa, centerDec, 
 	      &hRa[0], &hDec[0], nSamples);
   }//brute force approach
-
+*/
   //get max and min values of each coordinate during valid scans
   int nScans = tel->scanIndex.ncols();
   minX = 8*PI;
@@ -1128,7 +1128,7 @@ bool Detector::getAzElPointing (Telescope *tel){
 	  if(LMT){
 	      	  azOff = cos(tel->hTelElAct[i])*azOffset - sin(tel->hTelElAct[i])*elOffset;
 	      	  elOff = cos(tel->hTelElAct[i])*elOffset + sin(tel->hTelElAct[i])*azOffset;
-	  } else {
+      } else {
 	      	  azOff = azOffset;
 	      	  elOff = elOffset;
 	  }

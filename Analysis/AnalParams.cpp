@@ -13,6 +13,10 @@ using namespace std;
 #include "tinyxml2.h"
 #include "SimParams.h"
 
+AnalParamsError::AnalParamsError(const char* what): std::runtime_error(what) {}
+AnalParamsError::AnalParamsError(const string& what): std::runtime_error(what.c_str()) {}
+AnalParamsError::~AnalParamsError() {}
+
 ///AnalParams constructor
 /** The AnalParams constructor pulls analysis parameters from an xml
     file (using tinyxml2) and stores them in the object for other
@@ -31,15 +35,13 @@ AnalParams::AnalParams(string apXmlFile)
   struct stat buf;
 
   if(stat(apXml.c_str(),&buf) == -1){
-	  cerr<<"AnalParams()::Fatal Error. Analysis parameter file not found: "<<
-			  apXml.c_str()<< endl;
-	  exit (-1);
+      throw AnalParamsError(
+          "AnalParams()::Fatal Error. Analysis parameter file not found: " + apXml);
   }
-
 
   xml.LoadFile(apXml.c_str());
 
-  this->simParams = NULL;
+  this->simParams = nullptr;
   //pack up the analysis parameters and steps first
   tinyxml2::XMLElement* xAnalysis;
   tinyxml2::XMLElement* xSteps;
@@ -48,18 +50,14 @@ AnalParams::AnalParams(string apXmlFile)
   xAnalysis = xml.FirstChildElement("analysis");
 
   if(!xAnalysis){
-    cerr << "XML error in " << apXml << ": ";
-    cerr << "<analysis> not found." << endl;
-    exit(1);
+      throw AnalParamsError(
+          "XML error in " + apXml + ": " + "<analysis> not found.");
   }
 
   //the analysis steps
   xSteps = xAnalysis->FirstChildElement("analysisSteps");
-  if(!xSteps){
-    cerr << "XML error in " << apXml << ": ";
-    cerr << "<analysisSteps> not found." << endl;
-    exit(1);
-  }
+  if(!xSteps) throwXmlError("<analysisSteps> not found.");
+
   xtmp = xSteps->FirstChildElement("mapIndividualObservations");
   if(!xtmp) throwXmlError("analysisSteps:mapIndividualObservations not found.");
   mapIndividualObservations = atoi(xtmp->GetText());
@@ -83,52 +81,36 @@ AnalParams::AnalParams(string apXmlFile)
   //sanity check analysis steps
   if(!coaddObservations){
     if(fitCoadditionToGaussian){
-      cerr << endl;
-      cerr << "XML error in " << apXml << ": ";
-      cerr << "In order to fit the coadded map to a Gaussian \n";
-      cerr << "you must coadd the individual observations ";
-      cerr << "in the same run. \n (i.e., <coaddObservations> 1 </coaddObservations>)";
-      cerr << endl << endl;
-      exit(1);
+      throwXmlError(
+            "In order to fit the coadded map to a Gaussian \n"
+            "you must coadd the individual observations in the same run.\n"
+            "(i.e., <coaddObservations> 1 </coaddObservations>)");
     }
     if(produceNoiseMaps){
-      cerr << endl;
-      cerr << "XML error in " << apXml << ": ";
-      cerr << "In order to produce noise maps \n";
-      cerr << "you must coadd the individual observations ";
-      cerr << "in the same run. \n (i.e., <coaddObservations> 1 </coaddObservations>)";
-      cerr << endl << endl;
-      exit(1);
+        throwXmlError(
+              "In order to produce noise maps \n"
+              "you must coadd the individual observations "
+              "in the same run. \n (i.e., <coaddObservations> 1 </coaddObservations>)");
     }
     if(applyWienerFilter){
-      cerr << endl;
-      cerr << "XML error in " << apXml << ": ";
-      cerr << "In order to apply the wiener filter \n";
-      cerr << "you must coadd the individual observations ";
-      cerr << "in the same run. \n (i.e., <coaddObservations> 1 </coaddObservations>)";
-      cerr << endl;
-      cerr << "(Don't forget that you ALSO need to make the noise maps " << endl;
-      cerr << "(i.e., <produceNoiseMaps> 1 </produceNoiseMaps>)";
-      cerr << endl << endl;
-      exit(1);
+        throwXmlError(
+              "In order to apply the wiener filter \n"
+              "you must coadd the individual observations "
+              "in the same run. \n (i.e., <coaddObservations> 1 </coaddObservations>)"
+              "(Don't forget that you ALSO need to make the noise maps\n"
+              "(i.e., <produceNoiseMaps> 1 </produceNoiseMaps>)");
     }
   }
   if(applyWienerFilter && !produceNoiseMaps){
-    cerr << endl;
-    cerr << "XML error in " << apXml << ": ";
-    cerr << "In order to apply the wiener filter you must produce noise \n maps ";
-    cerr << "in the same run. (i.e., <produceNoiseMaps> 1 </produceNoiseMaps>)";
-    cerr << endl << endl;
-    exit(1);
+      throwXmlError(
+               "In order to apply the wiener filter you must produce noise \n maps "
+               "in the same run. (i.e., <produceNoiseMaps> 1 </produceNoiseMaps>)");
   }
-
 
   //the parameters section
   xParameters = xAnalysis->FirstChildElement("parameters");
   if(!xParameters){
-    cerr << "<parameters> not found in input xml file.";
-    cerr << "These MUST be set." << endl;
-    exit(1);
+      throwXmlError("<parameters> not found. These MUST be set.");
   }
   xtmp = xParameters->FirstChildElement("despikeSigma");
   if(!xtmp) throwXmlError("despikeSigma not found.");
@@ -291,15 +273,13 @@ AnalParams::AnalParams(string apXmlFile)
     tinyxml2::XMLElement* xCoadd;
     xCoadd = xAnalysis->FirstChildElement("coaddition");
     if(!xCoadd){
-      cerr << "AnalParams: ap: coaddition settings not found." << endl;
-      exit(1);
+        throwXmlError("coaddition settings not found.");
     } else {
       xtmp = xCoadd->FirstChildElement("mapPath");
       if(!xtmp) throwXmlError("mapPath not found.");
       coaddOutPath = xtmp->GetText();
       if(stat(coaddOutPath.c_str(),&buf) == -1){
-	cerr << "AnalParams: ap: mapPath not found: " << coaddOutPath << endl;
-	exit(1);
+          throw AnalParamsError("mapPath not valid: " + coaddOutPath);
       }
       xtmp = xCoadd->FirstChildElement("mapFile");
       if(!xtmp) throwXmlError("mapFile not found.");
@@ -308,29 +288,27 @@ AnalParams::AnalParams(string apXmlFile)
     }
   }
 
-
   //the noise realization values
   if(produceNoiseMaps){
     tinyxml2::XMLElement* xNoise;
     xNoise = xAnalysis->FirstChildElement("noiseRealization");
     if(!xNoise){
-      cerr << "AnalParams: ap: noiseRealization settings not found." << endl;
-      exit(1);
+        throwXmlError("noiseRealization settings not found.");
     } else {
       xtmp = xNoise->FirstChildElement("nRealizations");
       if(!xtmp) throwXmlError("noiseRealization->nRealizations not found.");
       nRealizations = atoi(xtmp->GetText());
       if(nRealizations == 0) {
-	cerr << "noiseRealizations->nRealizations = 0. Set to non-zero ";
-	cerr << "value or set produceNoiseMaps=0." << endl;
+          throwXmlError(
+                   "noiseRealizations->nRealizations = 0. Set to non-zero "
+                   "value or set produceNoiseMaps=0.");
       }
       
       xtmp = xNoise->FirstChildElement("noisePath");
       if(!xtmp) throwXmlError("noisePath not found.");
       noisePath = xtmp->GetText(); 
       if(stat(noisePath.c_str(),&buf) == -1){
-	cerr << "AnalParams: ap: noisePath not found: " << noisePath << endl;
-	exit(1);
+          throw AnalParamsError("noisePath not valid: " + noisePath);
       }
       
       avgNoisePsdFile=noisePath;
@@ -355,10 +333,12 @@ AnalParams::AnalParams(string apXmlFile)
       if(!xtmp) throwXmlError("gaussianTemplate not set");
       gaussianTemplate = (atof(xtmp->GetText()) != 0);
       if(gaussianTemplate){
-	xtmp = xWienerFilter->FirstChildElement("gaussianTemplateFWHM");
-	if(!xtmp) throwXmlError("Wiener Filter gaussian template requested but \ngaussianTemplateFWHM not set.");
-	gaussianTemplateFWHM = (atof(xtmp->GetText()));
-      } else gaussianTemplateFWHM = 0.;
+        xtmp = xWienerFilter->FirstChildElement("gaussianTemplateFWHM");
+        if(!xtmp) throwXmlError("Wiener Filter gaussian template requested but \ngaussianTemplateFWHM not set.");
+        gaussianTemplateFWHM = (atof(xtmp->GetText()));
+      } else {
+          gaussianTemplateFWHM = 0.;
+      }
       xtmp = xWienerFilter->FirstChildElement("lowpassOnly");
       if(!xtmp) throwXmlError("lowpassOnly not set");
       lowpassOnly = (atof(xtmp->GetText()) != 0);
@@ -371,8 +351,7 @@ AnalParams::AnalParams(string apXmlFile)
       if(!xtmp) throwXmlError("normalizeErrors not set");
       normalizeErrors = (atof(xtmp->GetText()) != 0);
     } else {
-      cerr << "AnalParams: ap: wienerFilter settings not found." << endl;
-      exit(1);
+        throwXmlError("wienerFilter settings not found.");
     }
   }
 
@@ -388,19 +367,18 @@ AnalParams::AnalParams(string apXmlFile)
       if(!xtmp) throwXmlError("kernelName not set");
       kernelName = xtmp->GetText();
       if(kernelName == "core"){
-	xtmp = xAltKernel->FirstChildElement("coreR0");
-	if(!xtmp) throwXmlError("altKernel=core but coreR0 not set");
-	coreR0 = atof(xtmp->GetText());
-	xtmp = xAltKernel->FirstChildElement("coreP");
-	if(!xtmp) throwXmlError("altKernel=core but coreP not set");
-	coreP = atof(xtmp->GetText());
-	xtmp = xAltKernel->FirstChildElement("coreAxisRatio");
-	if(!xtmp) throwXmlError("altKernel=core but coreAxisRatio not set");
-	coreAxisRatio = atof(xtmp->GetText());
+        xtmp = xAltKernel->FirstChildElement("coreR0");
+        if(!xtmp) throwXmlError("altKernel=core but coreR0 not set");
+        coreR0 = atof(xtmp->GetText());
+        xtmp = xAltKernel->FirstChildElement("coreP");
+        if(!xtmp) throwXmlError("altKernel=core but coreP not set");
+        coreP = atof(xtmp->GetText());
+        xtmp = xAltKernel->FirstChildElement("coreAxisRatio");
+        if(!xtmp) throwXmlError("altKernel=core but coreAxisRatio not set");
+        coreAxisRatio = atof(xtmp->GetText());
       } else {
-	cerr << "Unknown altKernel name supplied." 
-	     << "  Currently support 'core' only." << endl;
-	exit(1);
+          throwXmlError("unknown altKernel name supplied."
+                        "  Currently support 'core' only.");
       }
     }
 
@@ -412,24 +390,21 @@ AnalParams::AnalParams(string apXmlFile)
   if(!xtmp) throwXmlError("rawDataPath not found.");
   rawDataPath = xtmp->GetText();
   if(stat(rawDataPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: rawDataPath not found: " << rawDataPath << endl;
-    exit(1);
+      throw AnalParamsError("rawDataPath not valid: " + rawDataPath);
   }
 
   xtmp = xObs->FirstChildElement("bsPath");
   if(!xtmp) throwXmlError("bsPath not found.");
   bsPath = xtmp->GetText();
   if(stat(bsPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: bsPath not found: " << bsPath << endl;
-    exit(1);
+      throw AnalParamsError("bsPath not valid: " + bsPath);
   }
 
   xtmp = xObs->FirstChildElement("mapPath");
   if(!xtmp) throwXmlError("mapPath not found.");
   mapPath = xtmp->GetText();
   if(stat(mapPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: mapPath not found: " << mapPath << endl;
-    exit(1);
+      throw AnalParamsError("mapPath not valid: " + mapPath);
   }
 
   xtmp = xObs->FirstChildElement("nFiles");
@@ -451,8 +426,7 @@ AnalParams::AnalParams(string apXmlFile)
     fileList[i].assign(rawDataPath);
     fileList[i].append(xtmp->GetText());
     if(stat(fileList[i].c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: data file not found: " << fileList[i] << endl;
-    exit(1);
+        throw AnalParamsError("data file not found: " + fileList[i]);
     }
 
     xtmp = xObs->FirstChildElement(fId)->FirstChildElement("bsName");
@@ -460,8 +434,7 @@ AnalParams::AnalParams(string apXmlFile)
     bstatList[i].assign(bsPath);
     bstatList[i].append(xtmp->GetText());
     if(stat(bstatList[i].c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: bstat not found: " << bstatList[i] << endl;
-    exit(1);
+        throw AnalParamsError("bstat file not found: " + bstatList[i]);
     }
 
     xtmp = xObs->FirstChildElement(fId)->FirstChildElement("mapName");
@@ -481,26 +454,25 @@ AnalParams::AnalParams(string apXmlFile)
   cerr << "Planning to analyze " << nFiles << " files." << endl;
 
   xtmp = xAnalysis->FirstChildElement("simulate");
-  if (xtmp != NULL)
+  if (xtmp != nullptr)
 	  this->simParams = new SimParams(xtmp);
 
   doSubtract = false;
   subtractFirst =false;
   xtmp = xAnalysis->FirstChildElement("subtract");
-  if (xtmp != NULL){
+  if (xtmp != nullptr){
     struct stat st;
     tinyxml2::XMLElement *stmp = xtmp->FirstChildElement("subPath");
-    if (stmp != NULL){
+    if (stmp != nullptr){
       subtractPath.assign(stmp->GetText());
       if(stat(subtractPath.c_str(),&st) == -1){
-        cerr << "AnalParams: subtractPath not such file/directory: " << subtractPath << endl;
-        exit(1);
+          throwXmlError("subtractPath no such file/directory: " + subtractPath);
       }
       tinyxml2::XMLElement *sfiletmp = xtmp->FirstChildElement("subFile");
       if (sfiletmp !=NULL){
         subtractFile.assign(sfiletmp->GetText());
         if(stat((subtractPath+subtractFile).c_str(),&st) == -1){
-          cerr << "AnalParams: subtractFile not  such file/directory: " << subtractFile << endl;
+            throwXmlError("subtractFile no such file/directory: " + subtractFile);
         }
         doSubtract = true;
       }
@@ -619,34 +591,25 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
   apXml = apXmlFile;
   tinyxml2::XMLDocument xml;
   struct stat buf;
-
-  if(stat(apXml.c_str(),&buf) == -1){
-    cerr<< "AnalParams()::Fatal Error. Analysis parameter file not found: " << apXml.c_str() << endl;
-    exit(-1);
+  if (stat(apXml.c_str(),&buf) == -1) {
+      throw AnalParamsError(
+          "AnalParams()::Fatal Error. Analysis parameter file not found: " + apXml);
   }
   xml.LoadFile(apXml.c_str());
 
-
-  this->simParams = NULL;
+  this->simParams = nullptr;
   //pack up the analysis parameters and steps first
   tinyxml2::XMLElement* xAnalysis;
   tinyxml2::XMLElement* xParameters;
   tinyxml2::XMLElement* xtmp;
   xAnalysis = xml.FirstChildElement("analysis");
 
-  if(!xAnalysis){
-    cerr << "XML error in " << apXml << ": ";
-    cerr << "<analysis> not found." << endl;
-    exit(1);
-  }
+  if (!xAnalysis) throwXmlError("<analysis> not found.");
 
   //the parameters section
   xParameters = xAnalysis->FirstChildElement("parameters");
-  if(!xParameters){
-    cerr << "<parameters> not found in input xml file.";
-    cerr << " These MUST be set." << endl;
-    exit(1);
-  }
+  if(!xParameters) throwXmlError("<parameters> not found. These MUST be set.");
+
   xtmp = xParameters->FirstChildElement("despikeSigma");
   if(!xtmp) throwXmlError("despikeSigma not found.");
   despikeSigma = atof(xtmp->GetText());
@@ -826,32 +789,28 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
   if(!xtmp) throwXmlError("rawDataPath not found.");
   rawDataPath = xtmp->GetText();
   if(stat(rawDataPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: rawDataPath not found: " << rawDataPath << endl;
-    exit(1);
+      throw AnalParamsError("rawDataPath not valid: " + rawDataPath);
   }
 
-	xtmp = xObs->FirstChildElement("bsPath");
+  xtmp = xObs->FirstChildElement("bsPath");
   if(!xtmp) throwXmlError("bsPath not found.");
   bsPath = xtmp->GetText();
   if(stat(bsPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: bsPath not found: " << bsPath << endl;
-    exit(1);
+      throw AnalParamsError("bsPath not valid: " + bsPath);
   }
 
   xtmp = xObs->FirstChildElement("outBeammapInfoPath");
   if(!xtmp) throwXmlError("outBeammapInfoPath not found.");
   outBeammapInfoPath = xtmp->GetText();
   if(stat(outBeammapInfoPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: outBeammapInfoPath not found: " << outBeammapInfoPath << endl;
-    exit(1);
+      throw AnalParamsError("outBeammapInfoPath not valid: " + outBeammapInfoPath);
   }
 
   xtmp = xObs->FirstChildElement("outBeammapNcdfPath");
   if(!xtmp) throwXmlError("outBeammapNcdfPath not found.");
   outBeammapNcdfPath = xtmp->GetText();
   if(stat(outBeammapNcdfPath.c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: outBeammapNcdfPath nout found: " << outBeammapNcdfPath << endl;
-    exit(1);
+      throw AnalParamsError("outBeammapNcdfPath not valid: " + outBeammapNcdfPath);
   }
 
   xtmp = xObs->FirstChildElement("nFiles");
@@ -877,8 +836,7 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
     fileList[i].assign(rawDataPath);
     fileList[i].append(xtmp->GetText());
     if(stat(fileList[i].c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: data file not found: " << fileList[i] << endl;
-    exit(1);
+        throw AnalParamsError("data file not found: " + fileList[i]);
     }
 
     xtmp = xObs->FirstChildElement(fId)->FirstChildElement("bsName");
@@ -886,8 +844,7 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
     bstatList[i].assign(bsPath);
     bstatList[i].append(xtmp->GetText());
     if(stat(bstatList[i].c_str(),&buf) == -1){
-    cerr << "AnalParams: ap: bstat not found: " << bstatList[i] << endl;
-    exit(1);
+        throw AnalParamsError("bstat not found: " + bstatList[i]);
     }
 
     xtmp = xObs->FirstChildElement(fId)->FirstChildElement("outBeammapInfoName");
@@ -1011,8 +968,7 @@ AnalParams::AnalParams(AnalParams *ap){
   this->wienerFilter = ap->wienerFilter;
   
   if (this->nFiles <=0){
-    cerr<<"AnalParams(): Copy constructor cannot continue without analyzing files."<<endl<< "Program ending"<<endl;
-    exit(-1);
+      throw AnalParams("Copy constructor cannot continue without analyzing files.");
   }
   
   this->fileList = new string [nFiles];
@@ -1113,8 +1069,7 @@ bool AnalParams::determineObservatory()
 
 void AnalParams::throwXmlError(string p)
 {
-  cerr << "XML error in " << apXml << ": " << p << endl;
-  exit(-1);
+    throw AnalParamsError("XML error in " + apXml + ": " + p);
 }
 
 
