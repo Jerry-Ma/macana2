@@ -1,3 +1,4 @@
+CONFIG += ordered
 TEMPLATE = subdirs
 SUBDIRS += \
     macana_core \

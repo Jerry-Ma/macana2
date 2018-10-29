@@ -16,14 +16,14 @@ protected:
     AnalParams* ap = nullptr;
 };
 
-// AnalParams Constructor
 TEST_F(AnalParamsTest, AnalParamsFromApXml) {
-  EXPECT_EQ(ap->beammapping, 0);
+  EXPECT_EQ(ap->beammapping, 1);
 }
 
-// Tests that Foo does Xyz.
 TEST_F(AnalParamsTest, AnalParamsGetNFiles) {
   EXPECT_EQ(ap->getNFiles(), 1);
 }
+
+// more test for all the methods
 
 }  // namespace

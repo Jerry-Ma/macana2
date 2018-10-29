@@ -14,13 +14,6 @@
 //------------------------ o -------------------------------
 //------------------------ o -------------------------------
 
-struct vars_struct {
-  double *az;
-  double *el;
-  double *y;
-  double *sigma;
-};
-
 //user function for gaussian fit
 /*
   int m     - number of data points
@@ -191,7 +184,46 @@ double mpGaussFit(double* params, double* params_err, double* az, double* el,
 
   //call mpfit();
   int status;
-  status = mpfit(&myfunct_gauss, m, n, xall, pars, 0, &vars, &result);
+  struct mp_config_struct mpc;
+  // /* NOTE: the user may set the value explicitly; OR, if the passed
+  //    value is zero, then the "Default" value will be substituted by
+  //    mpfit(). */
+  // double ftol;    /* Relative chi-square convergence criterium Default: 1e-10 */
+  // double xtol;    /* Relative parameter convergence criterium  Default: 1e-10 */
+  // double gtol;    /* Orthogonality convergence criterium       Default: 1e-10 */
+  // double epsfcn;  /* Finite derivative step size               Default: MP_MACHEP0 */
+  // double stepfactor; /* Initial step bound                     Default: 100.0 */
+  // double covtol;  /* Range tolerance for covariance calculation Default: 1e-14 */
+  // int maxiter;    /* Maximum number of iterations.  If maxiter == MP_NO_ITER,
+  //                    then basic error checking is done, and parameter
+  //                    errors/covariances are estimated based on input
+  //                    parameter values, but no fitting iterations are done.
+  //                    Default: 200
+  //       */
+  // int maxfev;     /* Maximum number of function evaluations, or 0 for no limit
+  //            Default: 0 (no limit) */
+  // int nprint;     /* Default: 1 */
+  // int douserscale;/* Scale variables by user values?
+  //            1 = yes, user scale values in diag;
+  //            0 = no, variables scaled internally (Default) */
+  // int nofinitecheck; /* Disable check for infinite quantities from user?
+  //         0 = do not perform check (Default)
+  //         1 = perform check
+  //            */
+  // mp_iterproc iterproc; /* Placeholder pointer - must set to 0 */
+  mpc.ftol = 1e-20;
+  mpc.xtol = 1e-20;
+  mpc.gtol = 1e-20;
+  mpc.epsfcn = MP_MACHEP0;
+  mpc.stepfactor = 100.0;
+  mpc.covtol = 1e-28;
+  mpc.maxiter = 200;
+  mpc.maxfev = 0;
+  mpc.nprint = 1;
+  mpc.douserscale = 0;
+  mpc.nofinitecheck = 0;
+  mpc.iterproc = nullptr;
+  status = mpfit(&myfunct_gauss, m, n, xall, pars, &mpc, &vars, &result);
 
   if (status <= 0){
 	  cerr<<"GausFit(): Bad fit."<<endl;

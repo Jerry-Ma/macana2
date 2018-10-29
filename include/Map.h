@@ -72,6 +72,7 @@ class Map
   bool writeMapsToNcdf(string mapFilename);
   int getNrows();
   int getNcols();
+  int getNPixels();
   double getPixelSize();
   double getRowCoordsPhys(int i);
   double getColCoordsPhys(int i);

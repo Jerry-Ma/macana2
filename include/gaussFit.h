@@ -4,6 +4,12 @@
 extern "C" {
   int myfunct_gauss(int m, int n, double *p, double *deviates,
 		    double **derivs, void *vars);
+  struct vars_struct {
+    double *az;
+    double *el;
+    double *y;
+    double *sigma;
+  };
 }
 
 double mpGaussFit(double* params, double* params_err, double* az, double* el, 
