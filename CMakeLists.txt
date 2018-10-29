@@ -65,9 +65,9 @@ set(link_libraries
     ${NETCDF_CXX_LIBRARIES}
     ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
     )
-if (OpenMP_FOUND AND ${WITH_OPENMP})
+if (OpenMP_CXX_FOUND AND ${WITH_OPENMP})
     list(APPEND link_libraries OpenMP::OpenMP_CXX)
-elseif (OpenMP_FOUND AND (NOT ${WITH_OPENMP}))
+elseif (OpenMP_CXX_FOUND AND (NOT ${WITH_OPENMP}))
     message("Found OpenMP, use -DWITH_OPENMP=1 to enable")
 elseif (${WITH_OPENMP})
     message(FATAL_ERROR "Cannot find OpenMP, abort")
