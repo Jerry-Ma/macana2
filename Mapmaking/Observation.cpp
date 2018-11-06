@@ -473,22 +473,19 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
   NcVar *yCAbsVar = ncfid.add_var("yCoordsAbs", ncDouble, rowDim, colDim);
 
   size_t nDetectors = array->getNDetectors();
-  // size_t nSamples = array->getNSamples();
-  //size_t nvars = 5;
-  //NcDim* dimDetectors = ncfid.add_dim("nDetectors", nDetectors);
-  //NcDim* dimSamples = ncfid.add_dim ("nSamples", nSamples);
-  //NcDim* dimType = ncfid.add_dim ("types", nvars);
-  //NcVar* bArray =ncfid.add_var("boloData", ncDouble, dimType, dimDetectors, dimSamples);
-  // size_t nScans = tel->scanIndex.ncols();
-  //NcDim* dimScans =ncfid.add_dim("nScans", nScans);
-  //NcDim* dimScansLimit = ncfid.add_dim("scanLimit", 2);
-  //NcVar* scansVar = ncfid.add_var("scanIndex",ncInt,dimScansLimit,dimScans);
+  size_t nSamples = array->getNSamples();
+  size_t nvars = 5;
 
   rCPhysVar->put(&rowCoordsPhys[0], nrows);
   cCPhysVar->put(&colCoordsPhys[0], ncols);
   xCAbsVar->put(&xCoordsAbs[0][0], nrows, ncols);
   yCAbsVar->put(&yCoordsAbs[0][0], nrows, ncols);
 
+  /*
+  NcDim* dimDetector = ncfid.add_dim("nDetectors", nDetectors);
+  NcVar* testvar;
+  testvar = ncfid.add_var("testvar", ncDouble, dimDetector, rowDim, colDim);
+*/
   string obeamsignal;
   NcVar* nVar;
   for(size_t i=0;i<nDetectors;i++){
@@ -498,7 +495,7 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
     o << i;
     obeamsignal.append(o.str());
     nVar = ncfid.add_var(obeamsignal.c_str(), ncDouble, rowDim, colDim);
-    /* nVar->put(&beammapSignal[i][0], nrows, ncols); */
+    nVar->put(&beammapSignal[i][0], nrows, ncols);
   }
 
   string obeamweight;
@@ -506,10 +503,10 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
     cerr << "writing weight for map " << i << endl;
     obeamweight.assign("beammapWeight");
     stringstream o;
-    o << i+1;
+    o << i;
     obeamweight.append(o.str());
     nVar = ncfid.add_var(obeamweight.c_str(), ncDouble, rowDim, colDim);
-    /* nVar->put(&beammapWeight[i][0], nrows, ncols); */
+    nVar->put(&beammapWeight[i][0], nrows, ncols);
   }
 
   time_t rawtime;
