@@ -576,6 +576,7 @@ bool Observation::writeFitParamsToNcdf(string mapFile, MatDoub &fitParams)
     stringstream sstm;
     sstm << "beammapSignal" << i;
     NcVar* sigVar= ncfid.get_var(sstm.str().c_str());
+    sigVar->add_att("bolo_name", array->detectorNames[i].c_str());
     sigVar->add_att("dc_offset", fitParams[i][0]);
     sigVar->add_att("dc_offset_err", fitParams[i][7]);
     sigVar->add_att("dc_offset_units", "Jy");

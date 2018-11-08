@@ -1,0 +1,45 @@
+<analysis>
+<!-- start with analysis parameters and switches -->
+  <parameters>
+    <despikeSigma> 15.0 </despikeSigma>
+    <lowpassFilterKnee> 8.0 </lowpassFilterKnee>
+    <timeOffset> 0.125 </timeOffset>
+    <timeChunk> 0 </timeChunk>
+    <cutStd> 0 </cutStd>
+    <neigToCut> 3 </neigToCut>
+    <splineOrder> 0 </splineOrder>
+    <tOrder> 0 </tOrder>
+    <cleanPixelSize> 8 </cleanPixelSize>
+    <cleanStripe> 1 </cleanStripe>
+    <controlChunk> 0.01 </controlChunk>
+    <resample> 1.0 </resample>
+    <approximateWeights> 1 </approximateWeights>
+    <masterGridJ2000_0> 0.0 </masterGridJ2000_0>
+    <masterGridJ2000_1> 0.0 </masterGridJ2000_1>
+    <pixelSize> 3.0 </pixelSize>
+    <noiseMapsPerObs> 0 </noiseMapsPerObs>
+    <azelMap> 1 </azelMap>
+    <threadNumber> 1 </threadNumber>
+    <cutTurnArounds> 1 </cutTurnArounds>
+    <cutSamplesAtEndOfScans> 40 </cutSamplesAtEndOfScans>
+    <writeBeammapToNcdf> 1 </writeBeammapToNcdf>
+    <cleanIterationCap> 3 </cleanIterationCap>
+    <cleanIterationCutoff> 0.05 </cleanIterationCutoff>
+  </parameters>
+  <!-- observation filelist -->
+  <observations>
+    <rawDataPath>/Users/quirkyneku/Downloads/Toltec/constructingBolostats/</rawDataPath>
+    <bsPath>/Users/quirkyneku/Downloads/Toltec/constructingBolostats/</bsPath>
+    <outBeammapInfoPath>/Users/quirkyneku/Downloads/Toltec/BolostatsTxtOutput/</outBeammapInfoPath>
+    <outBeammapNcdfPath>/Users/quirkyneku/Downloads/Toltec/</outBeammapNcdfPath>
+    <nFiles>1</nFiles>
+    <f0>
+      <fileName>53701.nc</fileName>
+      <bsName>53701.bstats</bsName>
+      <outBeammapInfoName>53701.txt</outBeammapInfoName>
+      <outBeammapNcdfName>53701pixel.nc</outBeammapNcdfName>
+      <beammapSourceFlux> 3.45 </beammapSourceFlux>
+    </f0>
+</observations>
+</analysis>
+
