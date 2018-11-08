@@ -193,12 +193,13 @@ class AnalParams
   ///cleaning High Order Atm Template
   int tOrder;
 
-  AnalParams(string apXmlFile);
-  AnalParams(string apXmlFile, int beammapping);
+  AnalParams(string apXmlFile);  
+//   AnalParams(string apXmlFile, int beammapping);///Remove this constructor and force to read if is beammap or not from the xml
   AnalParams(AnalParams *ap);
   bool setDataFile(int index);
   bool determineObservatory();
   [[noreturn]] void throwXmlError(string p);
+  [[noreturn]] void BeamMapError(string p);  
   string getObservatory();
   string getTimeVarName();
   const char* getDataFile();
@@ -210,6 +211,7 @@ class AnalParams
   bool getCoaddObservations();
   bool getFitCoadditionToGaussian();
   bool getProduceNoiseMaps();
+  int getBeammapping();
   bool getApplyWienerFilter();
   bool getWienerFilter();
   double getDespikeSigma();

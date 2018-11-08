@@ -53,7 +53,9 @@ int main(int nArgs, char* args[])
   }
 
   //setting up the AnalParams, TimePlace, Array, Source, and Telescope
-  AnalParams* ap = new AnalParams(apXml, 1);
+  AnalParams* ap = new AnalParams(apXml);
+  
+  if (!ap->getBeammapping()) ap->BeamMapError("Error in beammap type xml file");
   int nFiles = ap->getNFiles();
   
   //begin loop over input files
