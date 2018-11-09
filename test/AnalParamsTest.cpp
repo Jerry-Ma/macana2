@@ -8,7 +8,7 @@ namespace {
 class AnalParamsTest : public ::testing::Test
 {
 protected:
-    AnalParamsTest(): ap(new AnalParams(apXmlFile, 1)) {}
+    AnalParamsTest(): ap(new AnalParams(apXmlFile)) {}
     ~AnalParamsTest() override {delete ap;}
     void SetUp() override {}
     void TearDown() override {}

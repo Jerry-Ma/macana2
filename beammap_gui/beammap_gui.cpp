@@ -112,7 +112,7 @@ void MainWindow::openApXml(const QString& path)
             // try setup macana
             try {
                 qDebug() << "initialize macana core from" << path;
-                mAnalParams = std::make_unique<AnalParams>(path.toStdString(), 1);
+                mAnalParams = std::make_unique<AnalParams>(path.toStdString());
                 qDebug() << "number of observations:" << mAnalParams->getNFiles();
                 qDebug() << "macana core initialized";
                 // restore the views' look

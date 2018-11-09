@@ -53,6 +53,7 @@ int main(int nArgs, char* args[])
   }
   
   AnalParams* ap = new AnalParams(apXml);
+  if (ap->getBeammapping()) ap->BeamMapError("Error in xml file");
   Array *array=NULL;
   TimePlace *timePlace = NULL;
   Source *source = NULL;
