@@ -818,6 +818,7 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
   nFiles = atoi(xtmp->GetText());
   outBeammapInfoList = new string [nFiles];
   outBeammapNcdfList = new string [nFiles];
+  outBeammapFitsList = new string [nFiles];
   fileList = new string [nFiles];
   bstatList = new string [nFiles];
   mapFileList = new string [nFiles];
@@ -857,6 +858,13 @@ AnalParams::AnalParams(string apXmlFile, int beammap)
       if(!xtmp) throwXmlError(ferror.append(": outBeammapNcdfName not found."));
       outBeammapNcdfList[i].assign(outBeammapNcdfPath);
       outBeammapNcdfList[i].append(xtmp->GetText());
+      xtmp = xObs->FirstChildElement(fId)->FirstChildElement("outBeammapFitsName");
+      if(!xtmp) {
+           outBeammapFitsList[i].assign("");
+      } else {
+           outBeammapFitsList[i].assign(outBeammapNcdfPath);
+           outBeammapFitsList[i].append(xtmp->GetText());
+      }
     }
 
     xtmp = xObs->FirstChildElement(fId)->FirstChildElement("beammapSourceFlux");
@@ -1010,6 +1018,7 @@ bool AnalParams::setDataFile(int index)
     outBeammapInfo = outBeammapInfoList[index].c_str();
     if(writeBeammapToNcdf){
       outBeammapNcdf = outBeammapNcdfList[index].c_str();
+      outBeammapFits = outBeammapFitsList[index].c_str();
     }
     beammapSourceFlux = beammapSourceFluxList[index]; 
   }
@@ -1169,6 +1178,11 @@ const char* AnalParams::getOutBeammapInfo()
 const char* AnalParams::getOutBeammapNcdf()
 {
   return outBeammapNcdf;
+}
+
+const char* AnalParams::getOutBeammapFits()
+{
+  return outBeammapFits;
 }
 
 

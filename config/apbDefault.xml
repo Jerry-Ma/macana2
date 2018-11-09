@@ -13,7 +13,7 @@
     <cleanStripe> 1 </cleanStripe>
     <controlChunk> 0.01 </controlChunk>
     <resample> 1.0 </resample>
-    <approximateWeights> 1 </approximateWeights>
+    <approximateWeights> 0 </approximateWeights>
     <masterGridJ2000_0> 0.0 </masterGridJ2000_0>
     <masterGridJ2000_1> 0.0 </masterGridJ2000_1>
     <pixelSize> 1.5 </pixelSize>

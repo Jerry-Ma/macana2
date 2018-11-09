@@ -137,7 +137,6 @@ int main(int nArgs, char* args[])
     string mapFile = ap->getOutBeammapNcdf();
     mapFile.replace(mapFile.end() - 5, mapFile.end(), "_noclean.nc");
     obs->writeObservationToNcdf(mapFile);
-//          obs->writeBeammapsToFits(mapFile);
 
     //begin the iterative cleaning
     while(iteration < cap){
@@ -247,10 +246,12 @@ int main(int nArgs, char* args[])
         
         if(ap->getWriteBeammapToNcdf()){
           string mapFile = ap->getOutBeammapNcdf();
+          const char* fitsMapFile = ap->getOutBeammapFits();
           
           cerr << "writing maps to " << mapFile << endl;
           obs->writeBeammapsToNcdf(mapFile);
-          /* obs->writeBeammapsToFits(mapFile); */
+          if (fitsMapFile)
+              obs->writeBeammapsToFits(string(fitsMapFile));
           
           cerr << "writing fit parameters to " << mapFile << endl;
           obs->writeFitParamsToNcdf(mapFile, fitParams);

@@ -58,6 +58,7 @@ class AnalParams
   string* bstatList;                ///<the list of bolostat files
   string* outBeammapInfoList;       ///<the list of output beammapping parameter files
   string* outBeammapNcdfList;       ///<the list of full netcdf beammapping data
+  string* outBeammapFitsList;       ///<the list of full netcdf beammapping data
   string* mapFileList;              ///<the output map file names
   MatDoub bsOffsetList;             ///<the corresponding boresight offsets
   VecDoub beammapSourceFluxList;    ///<the list of beammap source fluxes 
@@ -67,6 +68,7 @@ class AnalParams
   const char* mapFile;              ///<the current output map file name
   const char* outBeammapInfo;       ///<the current output bolostats file (beammapping)
   const char* outBeammapNcdf;       ///<the current output netcdf file (beammapping)
+  const char* outBeammapFits;       ///<the current output netcdf file (beammapping)
   string sourceName;                ///<the source name from the data file    
 
   ///coaddition
@@ -203,6 +205,7 @@ class AnalParams
   const char* getBolostatsFile();
   const char* getOutBeammapInfo();
   const char* getOutBeammapNcdf();
+  const char* getOutBeammapFits();
   bool getMapIndividualObservations();
   bool getCoaddObservations();
   bool getFitCoadditionToGaussian();

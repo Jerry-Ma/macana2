@@ -27,28 +27,11 @@ using namespace std;
 /** Just simple initialization going on here.
  **/
 Observation::Observation(AnalParams* analParams)
+    : ap(analParams),
+      saveTimestreams(ap->getSaveTimestreams()),
+      pixelSize(ap->getPixelSize() * RAD_ASEC),
+      masterGrid(2, ap->getMasterGridJ2000())
 {
-	//set our ap pointer
-	ap = analParams;
-
-	//save typing
-	pixelSize = ap->getPixelSize()/3600./360.*TWO_PI;
-	double* mpp;
-	mpp = ap->getMasterGridJ2000();
-	masterGrid.resize(2);
-	masterGrid[0] = mpp[0];
-	masterGrid[1] = mpp[1];
-
-	//initialize nrows and ncols
-	nrows=0;
-	ncols=0;
-
-	atmTemplate = NULL;
-        signal = NULL;
-        kernel = NULL;
-        weight = NULL;
-        inttime = NULL; 
-	saveTimestreams = ap->getSaveTimestreams();
 }
 
 
@@ -61,80 +44,83 @@ stored row after row
 
 bool Observation::generateBeammaps(Array* a, Telescope* tel)
 {
-  this->tel = tel;
-  //set up coordinate systems and map size, and intialize maps
-  mapGenerationPrep(a);
+    this->tel = tel;
+    //set up coordinate systems and map size, and intialize maps
+    mapGenerationPrep(a);
 
-  a->updateDetectorIndices();
-  int* di = a->getDetectorIndices();
+    a->updateDetectorIndices();
+    int* di = a->getDetectorIndices();
 
-  //grab the weights
-  MatDoub tmpwt = calculateWeights(a, tel);
+    //grab the weights
+    MatDoub tmpwt = calculateWeights(a, tel);
 
-  int nDetectors = a->getNDetectors();
-  int nScans = tel->scanIndex.ncols();
+    int nDetectors = a->getNDetectors();
+    int nScans = tel->scanIndex.ncols();
 
-  MatDoub wtt(nrows, ncols, 0.);
-  string mname;
-  weight = new Map(mname.assign("w"), nrows, ncols, pixelSize, wtt, rowCoordsPhys, colCoordsPhys);
+    //allocate space for the maps
+    beammapSignal.assign(nDetectors, npixels, 0.);
+    beammapWeight.assign(nDetectors, npixels, 0.);
+    beammapSigma.assign(nDetectors, npixels, std::nan(""));
+    beammapIntTime.assign(nDetectors, npixels, 0.);
 
-  //allocate space for the maps
-  beammapSignal.resize(nDetectors, nrows*ncols);
-  beammapWeight.resize(nDetectors, nrows*ncols);
-  beammapIntTime.resize(nDetectors, nrows*ncols);
+    MatDoub wtt(nrows,ncols,0.);
+    weight = new Map(string("weight"), nrows, ncols, pixelSize,
+                     wtt, rowCoordsPhys, colCoordsPhys);
 
-  for(int i=0;i<nDetectors;i++){
-    for(int j=0;j<nrows*ncols;j++){
-      beammapSignal[i][j] = 0;
-      beammapWeight[i][j] = 0;
-    }
-  }
-
-  //for each detector, calculate signal and weight values
-  for(int i=0;i<nDetectors;i++){
-    MatInt times(nrows, ncols, 0.);
-    for(int k=0;k<nScans;k++){
-      int si=tel->scanIndex[0][k];
-      int ei=tel->scanIndex[1][k]+1;
-      for(int j=si;j<ei;j++){
-        if(a->detectors[di[i]].hSampleFlags[j]){
-          int irow;
-          int icol;
-          weight->raDecPhysToIndex(a->detectors[di[i]].hRa[j],
-            a->detectors[di[i]].hDec[j], &irow, &icol);
-
-          beammapWeight[i][irow*ncols+icol] += tmpwt[i][k];
-          //cout << beammapWeight[i][irow*ncols+icol] << endl;
-
-          double hx = a->detectors[di[i]].hValues[j];
-          if(hx != hx){
-            cerr << "NaN detected on file: " << ap->getMapFile() << endl;
-            cerr << "tmpwt: " << tmpwt[i][k] << endl;
-            cerr << "det: " << a->detectors[di[i]].hValues[j] << endl;
-            cerr << "i: " << i << endl;
-            cerr << "j: " << j << endl;
-            cerr << "k: " << k << endl;
-          }
-
-          beammapSignal[i][irow*ncols+icol] += hx;
-          beammapIntTime[i][irow*ncols+icol] += 1./64.;
-          times[irow][icol]++;
+    //for each detector, calculate signal and weight values
+    for(int i = 0; i < nDetectors; ++i)
+    {
+        MatInt nValues(nrows, ncols, 0.);
+        for(int k = 0; k < nScans; ++k)
+        {
+            int si=tel->scanIndex[0][k];
+            int ei=tel->scanIndex[1][k]+1;
+            for(int j = si; j < ei; ++j)
+            {
+                if(a->detectors[di[i]].hSampleFlags[j])
+                {
+                    double hx = tmpwt[i][k] * a->detectors[di[i]].hValues[j];
+                    if(hx != hx){
+                        cerr << "NaN detected on file: " << ap->getMapFile() << endl;
+                        cerr << "tmpwt: " << tmpwt[i][k] << endl;
+                        cerr << "hval: " << a->detectors[di[i]].hValues[j] << endl;
+                        cerr << "i: " << i << endl;
+                        cerr << "j: " << j << endl;
+                        cerr << "k: " << k << endl;
+                        throw runtime_error("Nan detected");
+                    }
+                    // write data
+                    int irow;
+                    int icol;
+                    weight->raDecPhysToIndex(a->detectors[di[i]].hRa[j],
+                                             a->detectors[di[i]].hDec[j],
+                                             &irow, &icol);
+                    beammapSignal[i][irow * ncols + icol] += hx;
+                    beammapWeight[i][irow * ncols + icol] += tmpwt[i][k];
+                    beammapIntTime[i][irow * ncols + icol] += 1. / 64.;
+                    nValues[irow][icol]++;
+                }
+            }
         }
-      }
+        // second pass in map space
+        int rep;
+        for(int irow = 0; irow < nrows; ++irow)
+            for(int icol = 0; icol < ncols; ++icol)
+            {
+                rep = nValues[irow][icol];
+                if(rep != 0)
+                {
+                    beammapSignal[i][irow * ncols + icol] = -beammapSignal[i][irow * ncols + icol] / beammapWeight[i][irow * ncols + icol];
+                    beammapSigma[i][irow * ncols + icol] = 1. / sqrt(beammapWeight[i][irow * ncols + icol]);
+                }
+                else
+                {
+                    beammapSignal[i][irow * ncols + icol] = std::nan("");
+                    beammapSigma[i][irow * ncols + icol] = std::nan("");
+                }
+            }
     }
-
-    for(int x=0;x<nrows;x++) for(int y=0;y<ncols;y++){
-      int rep = times[x][y];
-      if(rep != 0){
-        beammapSignal[i][x*ncols + y] = beammapSignal[i][x*ncols + y]/rep;
-        beammapSignal[i][x*ncols + y] = -beammapSignal[i][x*ncols + y];
-      }
-      else{
-        beammapSignal[i][x*ncols + y] = 0.;
-      }
-    }
-  }
-  return 1;
+    return true;
 }
 
 
@@ -285,55 +271,52 @@ bool Observation::generateMaps(Array* a, Telescope* tel)
 
 ///Prepares for map generation. Sets map size and prepares coordinate vectors
 
-bool Observation::mapGenerationPrep(Array* a)
-{
+void Observation::mapGenerationPrep(Array *a) {
     array = a;
-    //start with the map dimensions but copy IDL utilities
-    //for aligning the pixels in various maps
+    // start with the map dimensions but copy IDL utilities
+    // for aligning the pixels in various maps
     double y_min_act = a->getMinY();
     double y_max_act = a->getMaxY();
     double x_min_act = a->getMinX();
     double x_max_act = a->getMaxX();
 
-    //explicitly center on mastergrid
-    //require that maps are even dimensioned with a few extra pixels.
-    int xminpix = ceil(abs(x_min_act/pixelSize));
-    int xmaxpix = ceil(abs(x_max_act/pixelSize));
-    xmaxpix = max(xminpix,xmaxpix);
-    nrows = 2.*xmaxpix+4;
-    int yminpix = ceil(abs(y_min_act/pixelSize));
-    int ymaxpix = ceil(abs(y_max_act/pixelSize));
-    ymaxpix = max(yminpix,ymaxpix);
-    ncols = 2.*ymaxpix+4;
-    nPixels = nrows*ncols;
+    // explicitly center on mastergrid
+    // require that maps are even dimensioned with a few extra pixels.
+    int xminpix = ceil(abs(x_min_act / pixelSize));
+    int xmaxpix = ceil(abs(x_max_act / pixelSize));
+    xmaxpix = max(xminpix, xmaxpix);
+    nrows = 2 * xmaxpix + 4;
+    int yminpix = ceil(abs(y_min_act / pixelSize));
+    int ymaxpix = ceil(abs(y_max_act / pixelSize));
+    ymaxpix = max(yminpix, ymaxpix);
+    ncols = 2 * ymaxpix + 4;
+    npixels = nrows * ncols;
 
-    //physical coordinates: this grid is set up so that physical
-    //coordinates are 0 at center of pixel near center of map
+    // physical coordinates: this grid is set up so that physical
+    // coordinates are 0 at center of pixel near center of map
     rowCoordsPhys.resize(nrows);
     colCoordsPhys.resize(ncols);
-    for(int i=0;i<nrows;i++) rowCoordsPhys[i] = (i-(nrows+1.)/2.)*pixelSize;
-    for(int i=0;i<ncols;i++) colCoordsPhys[i] = (i-(ncols+1.)/2.)*pixelSize;
+    for (int i = 0; i < nrows; i++)
+        rowCoordsPhys[i] = (i - (nrows + 1.) / 2.) * pixelSize;
+    for (int i = 0; i < ncols; i++)
+        colCoordsPhys[i] = (i - (ncols + 1.) / 2.) * pixelSize;
 
-    //sanity check
-    if(nrows > 36000 ||
-       ncols > 36000 ||
-       nPixels > 1.e9){
-      cerr << "Observation: Map is too big: [" << nrows << ", " << ncols << "]." << endl;
-      cerr << ap->getDataFile() << endl;
-      exit(1);
+    // sanity check
+    if (nrows > 36000 || ncols > 36000 || npixels > 1.e9) {
+        cerr << "Observation: Map is too big: [" << nrows << ", " << ncols << "]."
+             << endl;
+        cerr << ap->getDataFile() << endl;
+        throw runtime_error("Map is too big");
     }
 
-    //matrices of absolute coordinates
-    xCoordsAbs.resize(nrows,ncols);
-    yCoordsAbs.resize(nrows,ncols);
-    for(int i=0;i<nrows;i++)
-      for(int j=0;j<ncols;j++){
-        physToAbs(&rowCoordsPhys[i], &colCoordsPhys[j],
-        &masterGrid[0], &masterGrid[1],
-        &xCoordsAbs[i][j], &yCoordsAbs[i][j], 1);
-      }
-
-    return 1;
+    // matrices of absolute coordinates
+    xCoordsAbs.resize(nrows, ncols);
+    yCoordsAbs.resize(nrows, ncols);
+    for (int i = 0; i < nrows; i++)
+        for (int j = 0; j < ncols; j++) {
+            physToAbs(&rowCoordsPhys[i], &colCoordsPhys[j], &masterGrid[0],
+                      &masterGrid[1], &xCoordsAbs[i][j], &yCoordsAbs[i][j], 1);
+        }
 }
 
 //----------------------------- o ---------------------------------------
@@ -349,11 +332,14 @@ MatDoub Observation::calculateWeights(Array* a, Telescope* tel)
       double sens;
       double samprate;
       for(int i=0;i<nDetectors;i++)
-        for(int j=0;j<nScans;j++){
-          sens = a->detectors[di[i]].getSensitivity();
-          samprate = a->detectors[di[i]].getSamplerate();
+      {
+        sens = a->detectors[di[i]].getSensitivity();
+        samprate = a->detectors[di[i]].getSamplerate();
+        for(int j=0;j<nScans;j++)
+        {
           tmpwt[i][j] = pow(sqrt(samprate)*sens*1.e-3,-2);
         }
+      }
       //check for detectors with stupidly high sensitivities
       double medweight;
       double stdweight;
@@ -369,12 +355,29 @@ MatDoub Observation::calculateWeights(Array* a, Telescope* tel)
         }
       }
     } else {
+      cout << "Getting weight from scanWeight" << endl;
       for(int i=0;i<nDetectors;i++)
-        for(int j=0;j<nScans;j++){
+      {
+        a->detectors[di[i]].calculateScanWeight(tel);
+        for(int j=0;j<nScans;j++)
+        {
           tmpwt[i][j] = a->detectors[di[i]].scanWeight[j];
         }
+      }
+      // double stdweight;
+      double medweight = median(tmpwt[0], nDetectors * nScans);
+      for(int i=0;i<nDetectors;i++)
+      {
+          for(int j=0;j<nScans;j++)
+          {
+            if(tmpwt[i][j] > 2.* medweight)
+            {
+                cout<<"Bad weight on scan: "<< j << " bolometer " << di[i] << ": " << array->detectors[di[i]].getName()<<" filename: "<<ap->getMapFile()<<endl;
+                tmpwt[i][j] = medweight / 2.0;
+            }
+          }
+      }
     }
-
     return tmpwt;
 }
 

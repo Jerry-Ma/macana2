@@ -6,13 +6,15 @@
 #define PIO2  (PI / 2.0) 
 // Degrees per radian
 #define DEG_RAD (360.0 / TWO_PI)
+// Radians per degree
+#define RAD_DEG (TWO_PI / 360.0)
 // Seconds per UT day
 #define SEC_DAY 86400.0
 // One UT second in radians
 #define ONESEC (TWO_PI / SEC_DAY)
 // Arcseconds in 360 degrees
 #define ASEC_CIRC 1296000.0
-// Arcseconds in 1 radian
+// rad per arcsecond
 #define RAD_ASEC (TWO_PI / ASEC_CIRC)
 // J2000 Standard Epoch
 #define TJ2000 2451545.0
