@@ -1,23 +1,31 @@
 #include <QApplication>
 #include <QtGlobal>
+#include <QDebug>
+#include <QShowEvent>
+#include <QFileDialog>
+#include <QSortFilterProxyModel>
+#include <QMessageBox>
 #include <QDomDocument>
 
 #include "beammap_gui.h"
 #include "dommodel.h"
 #include "domitem.h"
 #include "ui_beammap_gui.h"
+#include "imageview.h"
 
 #include "AnalParams.h"
 #include "Observation.h"
 #include "TimePlace.h"
+#include "Clean.h"
+#include "CleanSelector.h"
+#include "astron_utilities.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    colorMap = new QCPColorMap(ui->canvas->xAxis, ui->canvas->yAxis);
-    colorMap->setInterpolate(false);
+    ui->detComboBox->setModel(&detList);
     qDebug() << "mainwindow initialized";
 }
 
@@ -27,13 +35,37 @@ MainWindow::~MainWindow()
     qDebug() << "mainwindow destroyed";
 }
 
+void MainWindow::showEvent(QShowEvent* event)
+{
+    QMainWindow::showEvent(event);
+    QApplication::processEvents();
+    if(!startUp || event->spontaneous()) return;
+    // run statup setting
+    startUp = false;
+    // read the ap.xml if supplied
+    QStringList args = QCoreApplication::arguments();
+    if (args.count() > 2)
+        qDebug() << "ignore extra commandline arguments:" << args.mid(2);
+    if (args.count() > 1)
+    {
+        QString startUpApXmlPath = args.at(1);
+        QMetaObject::invokeMethod(this, [this, startUpApXmlPath] {
+            this->openApXml(startUpApXmlPath);
+        }, Qt::ConnectionType::QueuedConnection);
+    }
+    return;
+}
+
 void MainWindow::openApXml()
 {
      QString path = QFileDialog::getOpenFileName(
                 this, tr("Open File"),
                 apXmlPath, tr("XML files (*.xml)"));
+     QApplication::processEvents();
      if (!path.isEmpty()) {
-         return openApXml(path);
+         QMetaObject::invokeMethod(this, [this, path] {
+             openApXml(path);
+         }, Qt::ConnectionType::QueuedConnection);
      }
      return;
 }
@@ -74,7 +106,6 @@ void MainWindow::openApXml(const QString& path)
                     ).at(0);
             ui->obsComboBox->setRootModelIndex(obsindex);
             ui->obsComboBox->blockSignals(false); // let go the signal
-            // apply changes to class members
             delete apXml; // get rid of the old ap dommodel
             apXml = m;  // and store the new ap dommodel
             apXmlPath = path;  // and store the current path
@@ -84,9 +115,6 @@ void MainWindow::openApXml(const QString& path)
                 mAnalParams = std::make_unique<AnalParams>(path.toStdString(), 1);
                 qDebug() << "number of observations:" << mAnalParams->getNFiles();
                 qDebug() << "macana core initialized";
-                // set the current observation to the first in the list
-                // this will trigger the observation initialization
-                ui->obsComboBox->setCurrentIndex(obsId);  // default to the first observation
                 // restore the views' look
                 ui->apXmlTreeView->setPalette(QApplication::palette(ui->apXmlTreeView));
             } catch (const AnalParamsError& error) {
@@ -98,6 +126,9 @@ void MainWindow::openApXml(const QString& path)
                 // p.setColor( QPalette::Base, Qt::red);
                 // ui->apXmlTreeView->setPalette(p);
             }
+            // set the current observation to the first in the list
+            // this will trigger the observation initialization
+            ui->obsComboBox->setCurrentIndex(obsId);  // default to the first observation
         }
         fo.close();
     }
@@ -108,32 +139,54 @@ void MainWindow::setObsId(int idx)
     this->obsId = idx;
     // update the observation tree view
     // figure out the model index
-    auto p = static_cast<QSortFilterProxyModel*>(ui->obsComboBox->model());
-    QModelIndex parent = p->match(
-        p->index(0, 0),
+    auto pm = static_cast<QSortFilterProxyModel*>(ui->obsComboBox->model());
+    QModelIndex parent = pm->match(
+        pm->index(0, 0),
         Qt::DisplayRole,
         QVariant::fromValue(QString("observations")),
         1,
         Qt::MatchExactly | Qt::MatchRecursive
         ).at(0);
-    QModelIndex i = p->mapToSource(
-                    p->index(obsId, 0, parent));
+    QModelIndex mi = pm->mapToSource(
+                    pm->index(obsId, 0, parent));
     // set the obs tree view to current obs
-    ui->obsTreeView->setRootIndex(i);
-    DomItem* item = static_cast<DomItem*>(i.internalPointer());
+    ui->obsTreeView->setRootIndex(mi);
+    DomItem* item = static_cast<DomItem*>(mi.internalPointer());
+    QString obsName = item->node().firstChildElement().text();
     qDebug() << "select observation file #" << obsId
              << ui->obsComboBox->currentText()
-             << item->node().firstChildElement().text();
-    initializeObservation();
-}
+             << obsName;
+    // reset detComboBox
+    ui->detComboBox->setEnabled(false);
+    QApplication::processEvents(); // update the views
 
-
-void MainWindow::initializeObservation()
-{
+    // check macana core
     if (!mAnalParams) {
         qDebug() << "observation is not initialized because macana core is not initialized";
         return;
     }
+    // display a message box to show status
+    QMessageBox* msg = new QMessageBox(
+                QMessageBox::Information,
+                "",
+                QString("Initializing observation #%1\n\n\t%2").arg(obsId).arg(obsName),
+                nullptr, this, Qt::FramelessWindowHint);
+    // msg->setStandardButtons(nullptr);  // need to remove the ok button
+    connect(this, &MainWindow::observationInitialized, msg, &QMessageBox::accept);
+    QMetaObject::invokeMethod(msg, [this] {
+        this->initializeObservation();  // initialize macana core objects
+    }, Qt::ConnectionType::QueuedConnection);
+    if (msg->exec() == QDialog::Accepted) {
+        qDebug() << "observation #" << obsId << obsName << "initialized";
+        // update the detecor combobox
+        updateDetectorIndices();
+    } else {
+        qDebug() << "failed to initialize observation #" << obsId << obsName << "initialized";
+    }
+}
+
+void MainWindow::initializeObservation()
+{
     qDebug() << "initialize observation #" << obsId;
     mAnalParams->setDataFile(obsId);
     // create an Array object
@@ -142,10 +195,11 @@ void MainWindow::initializeObservation()
     // make a TimePlace
     mTimePlace = std::make_unique<TimePlace>(mAnalParams.get());
     // make a Source
+    // this will set the master grid from the input file
     mSource = std::make_unique<Source>(mAnalParams.get(), mTimePlace.get());
-    double *tmpGrid = mAnalParams->getMasterGridJ2000();
-    qDebug() << "Source Ra:" << tmpGrid[0] * 180.0/M_PI << "Dec:"
-             << tmpGrid[1] * 180.0/M_PI;
+    double *tmpGrid = mAnalParams->getMasterGridJ2000();  // radians
+    qDebug() << "Source Ra:" << tmpGrid[0] * DEG_RAD << "Dec:"
+             << tmpGrid[1] * DEG_RAD;
     // make a telescope
     mTelescope = std::make_unique<Telescope>(mAnalParams.get(), mTimePlace.get(), mSource.get());
     // get a pointer to the good detectors in the array
@@ -162,57 +216,61 @@ void MainWindow::initializeObservation()
     // find map bounds
     mArray->findMinMaxXY();
 
-    /*
     //despiking at detector level, detector by detector
     // first round of despiking
-    for (int i = 0; i < array->getNDetectors(); ++i) {
-        array->detectors[di[i]].despike(ap->getDespikeSigma());
+    for (int i = 0; i < mArray->getNDetectors(); ++i) {
+        mArray->detectors[di[i]].despike(mAnalParams->getDespikeSigma());
     }
-    array->updateDetectorIndices();
-    di = array->getDetectorIndices();
+    mArray->updateDetectorIndices();
+    di = mArray->getDetectorIndices();
 
     //replace flagged data in scans with faked data (useful for pca if needed)
-    array->fakeFlaggedData(telescope.get());
+    mArray->fakeFlaggedData(mTelescope.get());
 
     //make a fake source for psf determination
-    for(int i = 0; i <array->getNDetectors(); ++i){
-        array->detectors[di[i]].makeKernelTimestream(telescope.get());
+    for(int i = 0; i < mArray->getNDetectors(); ++i) {
+        mArray->detectors[di[i]].makeKernelTimestream(mTelescope.get());
     }
 
     //lowpass the data
-    for(int i = 0; i < array->getNDetectors(); ++i){
-        array->detectors[di[i]].lowpass(&array->digFiltTerms[0], array->nFiltTerms);
+    for(int i = 0; i < mArray->getNDetectors(); ++i) {
+        mArray->detectors[di[i]].lowpass(&mArray->digFiltTerms[0], mArray->nFiltTerms);
     }
     //clean out overflagged scans
-    VecBool obsFlags(array->detectors[di[0]].getNSamples());
-    for (int j = 0; j < array->detectors[di[0]].getNSamples(); ++j) {
+    VecBool obsFlags(mArray->detectors[di[0]].getNSamples());
+    for (int j = 0; j < mArray->detectors[di[0]].getNSamples(); ++j) {
         obsFlags[j] = 0;
-        for(int i = 0; i < array->getNDetectors(); ++i)
-            if (array->detectors[di[i]].hSampleFlags[j]) obsFlags[j] = 1;
+        for(int i = 0; i < mArray->getNDetectors(); ++i)
+            if (mArray->detectors[di[i]].hSampleFlags[j]) obsFlags[j] = 1;
     }
-    telescope->checkScanLengths(obsFlags, array->detectors[0].getSamplerate());
+    mTelescope->checkScanLengths(obsFlags, mArray->detectors[0].getSamplerate());
 
     //generate the pointing signals
     // estimate average extinction
-    for(int i = 0;i < array->getNDetectors(); ++i){
-        array->detectors[di[i]].estimateExtinction(array->getAvgTau());
+    for(int i = 0;i < mArray->getNDetectors(); ++i){
+        mArray->detectors[di[i]].estimateExtinction(mArray->getAvgTau());
     }
-
-    //create vectors to store future fit parameters for iterative cleaning
-    fitParams.assign(array->getNDetectors(), 7, 0.);
-    previousFitParams.assign(array->getNDetectors(), 7, 1.0);
-
-    //create the vector that stores whether to terminate iteration for each detector
-    needsIteration.assign(array->getNDetectors(), 1.0);
 
     //store original hValues for iterative cleaning
-    int nSamples = array->detectors[di[0]].getNSamples();
-    originalhVals.assign(array->getNDetectors(), nSamples, 0.);
-    for(int i = 0; i < array->getNDetectors(); ++i){
+    int nSamples = mArray->detectors[di[0]].getNSamples();
+    originalhVals.assign(mArray->getNDetectors(), nSamples, 0.);
+
+    for(int i = 0; i < mArray->getNDetectors(); ++i){
         for(int j = 0; j < nSamples; j++){
-            originalhVals[i][j] = array->detectors[di[i]].hValues[j];
+            originalhVals[i][j] = mArray->detectors[di[i]].hValues[j];
         }
     }
+    // end of prep
+    emit observationInitialized();
+}
+
+/*
+    //create vectors to store future fit parameters for iterative cleaning
+    fitParams.assign(mArray->getNDetectors(), 7, 0.);
+    previousFitParams.assign(mArray->getNDetectors(), 7, 1.0);
+
+    //create the vector that stores whether to terminate iteration for each detector
+    needsIteration.assign(mArray->getNDetectors(), 1.0);
 
     //grab the iteration loop cap and the percent change cutoff
     iteration = 0;
@@ -223,124 +281,57 @@ void MainWindow::initializeObservation()
     observation = std::make_unique<Observation>(ap.get());
     observation->generateBeammaps(array.get(), telescope.get());
     showMap(0);
-    */
-    emit observationInitialized(true);
-}
+*/
 
-void MainWindow::showMap(int did)
+void MainWindow::setDetId(int idx)
 {
-    int ncols = mObservation->ncols;
-    int nrows = mObservation->nrows;
-    colorMap->data()->setSize(ncols, nrows);
-    colorMap->data()->setRange(QCPRange(0, 2), QCPRange(0, 2));
-    double z;
-    double vmin = 1e10, vmax = -1e10;
-    for (int x=0; x < ncols; ++x)
-    {
-        for (int y=0; y < nrows; ++y)
-        {
-            z = mObservation->beammapSignal[did][y * ncols + x];
-            vmin = (z != 0. && z < vmin)?z:vmin;
-            vmax = (z != 0. && z > vmax)?z:vmax;
-            colorMap->data()->setCell(x, y, (z==0.)?std::nan(""):z);
-        }
+    detId = idx;
+    foreach (QMdiSubWindow *window, ui->mdiArea->subWindowList()) {
+        ImageView *iv = qobject_cast<ImageView*>(window->widget());
+        iv->showBeammap(detId);
     }
-    colorMap->setGradient(QCPColorGradient::gpPolar);
-    colorMap->setDataRange(QCPRange(vmin, vmax));
-    // colorMap->rescaleDataRange(true);
-    ui->canvas->rescaleAxes();
-    ui->canvas->replot();
-}
-
-void MainWindow::showStatus(QMouseEvent* event)
-{
-    double x = ui->canvas->xAxis->pixelToCoord(event->pos().x());
-    double y = ui->canvas->yAxis->pixelToCoord(event->pos().y());
-    int i = 0;
-    int j = 0;
-    colorMap->data()->coordToCell(x, y, &j, &i);
-    double z = colorMap->data()->cell(j, i);
-    QString tooltip = QString("x=%1 y=%2 z=%3").arg(x).arg(y).arg(z);
-    ui->statusBar->showMessage(tooltip);
 }
 
 void MainWindow::runBeammap()
 {
-    /*
-    int nFiles = ap->getNFiles();
-    qDebug() << "number of ap files: " << nFiles;
-    //begin loop over input files
-    for(int fileNum = 0; fileNum < nFiles; ++fileNum){
-        qDebug() << "starting file number " << fileNum;
-        ap->setDataFile(fileNum);
-        TimePlace* timePlace = new TimePlace(ap.get());
-        Array* array = new Array(ap);
-        array->populate();
-        Source* source = new Source(ap, timePlace);
-        Telescope* telescope = new Telescope(ap, timePlace, source);
-        array->updateDetectorIndices();
-        int *di = array->getDetectorIndices();
-
-        //setting up physical coordinate system
-        telescope->absToPhysEqPointing();
-        for(int i = 0; i < array->getNDetectors(); i++){
-          array->detectors[di[i]].getPointing(telescope, timePlace, source);
-          array->detectors[di[i]].getAzElPointing(telescope);
-        }
-        array->findMinMaxXY();
-
-        //despiking at detector level, detector by detector
-        for(int i = 0; i < array->getNDetectors(); i++){
-          array->detectors[di[i]].despike(ap->getDespikeSigma());
-        }
-        array->updateDetectorIndices();
-        di = array->getDetectorIndices();
-
-        //replace flagged data in scans with faked data (useful for pca if needed)
-        array->fakeFlaggedData(telescope);
-
-        //make a fake source for psf determination
-        for(int i = 0; i <array->getNDetectors(); i++){
-          array->detectors[di[i]].makeKernelTimestream(telescope);
-        }
-
-        //lowpass the data
-        for(int i = 0; i < array->getNDetectors(); i++){
-          array->detectors[di[i]].lowpass(&array->digFiltTerms[0], array->nFiltTerms);
-        }
-
-        VecBool obsFlags(array->detectors[0].getNSamples());
-        for(int i = 0; i < array->detectors[0].getNSamples(); i++){
-          obsFlags[i] = 0;
-          for(int j = 0; j < array->getNDetectors(); j++){
-            if(array->detectors[di[j]].hSampleFlags[i]) obsFlags[i] = 1;
-          }
-        }
-        telescope->checkScanLengths(obsFlags, array->detectors[0].getSamplerate());
-
-        //generate the pointing signals
-        for(int i=0;i<array->getNDetectors();i++){
-          array->detectors[di[i]].estimateExtinction(array->getAvgTau());
-        }
-
-        //create vectors to store future fit parameters for iterative cleaning
-        MatDoub fitParams(array->getNDetectors(), 7, 0.);
-        MatDoub previousFitParams(array->getNDetectors(), 7, 1.0);
-
-        //create the vector that stores whether to terminate iteration for each detector
-        VecDoub needsIteration(array->getNDetectors(), 1.0);
-
-        //store original hValues for iterative cleaning
-        int nSamples = array->detectors[di[0]].getNSamples();
-        MatDoub originalhVals(array->getNDetectors(), nSamples, 0.);
-        for(int i = 0; i < array->getNDetectors(); i++){
-          for(int j = 0; j < nSamples; j++){
-            originalhVals[i][j] = array->detectors[di[i]].hValues[j];
-          }
-        }
+    qDebug() << "creating beammap of det #" << detId;
+    //cleaning
+    Clean* cleaner = CleanSelector::getCleaner(mArray.get(), mTelescope.get());
+    cleaner->clean();
+    delete cleaner;
+    updateDetectorIndices();
+    if(mArray->getAvgTau() < 0){
+        qDebug() << "error: opacity is less than 0.0 on file";
+        return;
     }
-    */
+    // generate beammap Map in imageview after cleanning
+    ImageView* iv = new ImageView;
+    iv->initializeBeammaps(mAnalParams.get(), mArray.get(), mTelescope.get());
+    // show the mdi window
+    ui->mdiArea->addSubWindow(iv);
+    iv->showMaximized();
+    // iv->show();
+    // display beammap
+    iv->showBeammap(detId);
 }
+
+void MainWindow::updateDetectorIndices()
+{
+    mArray->updateDetectorIndices();
+    ui->detComboBox->blockSignals(true); // silence until we finish setup
+    QStringList dl;
+    int* di = mArray->getDetectorIndices();
+    for (int i = 0; i < mArray->getNDetectors(); ++i) {
+        dl.push_back(QString("[%1] %2: %3")
+                     .arg(i).arg(di[i])
+                     .arg(QString::fromStdString(mArray->detectors[di[i]].getName())));
+    }
+    detList.setStringList(dl);
+    ui->detComboBox->setCurrentIndex(detId);
+    ui->detComboBox->blockSignals(false);
+    ui->detComboBox->setEnabled(true);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -357,13 +348,13 @@ int main(int argc, char *argv[])
     MainWindow w;
     w.show();
 
-    // read the ap.xml if supplied
-    QStringList args = QCoreApplication::arguments();
-    if (args.count() > 2)
-        qDebug() << "ignore extra commandline arguments:" << args.mid(2);
-    if (args.count() > 1)
-        w.openApXml(args.at(1));
-
+    /* / load the ap.xml on startup
+    auto const c = new QMetaObject::Connection;
+    *c = QObject::connect(w, &QMainWindow::, [this, text, c](){
+        QObject::disconnect(*c);
+        delete c;
+    });
+    */
     // run the app
     return a.exec();
 }

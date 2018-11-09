@@ -2,9 +2,10 @@
 #define BEAMMAP_GUI_H
 
 #include <QMainWindow>
-#include <nr3.h>
+#include <QStringListModel>
 
-class DomModel;  // model with parsed XML data
+#include <nr3.h>
+#include "dommodel.h"
 
 // macana-core types
 class AnalParams;
@@ -17,8 +18,6 @@ class Observation;
 // class MatDoub;
 // class VecDoub;
 
-// plotting
-class QCPColorMap;
 
 namespace Ui {
 class MainWindow;
@@ -30,26 +29,31 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
+    ~MainWindow() override;
+    void showEvent(QShowEvent* event) override;
 
 public slots:
     void openApXml();
     void openApXml(const QString& path);
     void setObsId(int idx);
+    void setDetId(int idx);
 
     void runBeammap();
 
-    void showStatus(QMouseEvent*);
 signals:
-    void observationInitialized(bool);
+    void observationInitialized();
 
 private:
     Ui::MainWindow *ui;
+    bool startUp = true;
 
     // handles the input ap.xml file
     QString apXmlPath;
     DomModel* apXml = nullptr;
+    QStringListModel detList;
     int obsId = 0;  // the current file index in the ap.xml
+    int detId = 0;  // detector index to work with
+    void updateDetectorIndices();  // update di in mArray as well as the detComboBox
 
     void initializeObservation();  // initialize macana-core objects with optional file number set
     // macana-core
@@ -61,8 +65,6 @@ private:
     std::unique_ptr<Observation> mObservation;
 
     // beammap data
-    MatDoub fitParams;
-    MatDoub previousFitParams;
     VecDoub needsIteration;
     MatDoub originalhVals;
 
@@ -70,10 +72,7 @@ private:
     int cap = 0;
     double cutOff = 0.;
 
-    // plotting
-    QCPColorMap* colorMap;
-    int did = 0;  // detector index to plot
-    void showMap(int did);
+
 };
 
 #endif // BEAMMAP_GUI_H
