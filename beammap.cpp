@@ -113,8 +113,8 @@ int main(int nArgs, char* args[])
     }
 
     //create vectors to store future fit parameters for iterative cleaning
-    MatDoub fitParams(array->getNDetectors(), 7, 0.);
-    MatDoub previousFitParams(array->getNDetectors(), 7, 1.0);
+    MatDoub fitParams(array->getNDetectors(), 14, 0.);
+    MatDoub previousFitParams(array->getNDetectors(), 14, 1.0);
 
     //create the vector that stores whether to terminate iteration for each detector
     VecDoub needsIteration(array->getNDetectors(), 1.0);
@@ -209,9 +209,10 @@ int main(int nArgs, char* args[])
         
           //the "120" parameter is an optional parameter that sets the size of the area to be fit"
           signal->fitToGaussian(pp, 120);
-          for(int j = 0; j < 7; j++){
+          for(int j = 0; j < 14; j++){
             previousFitParams[i][j] = fitParams[i][j];
             fitParams[i][j] = pp[j];
+
           }
           delete signal;
         }
@@ -251,10 +252,11 @@ int main(int nArgs, char* args[])
           const char* fitsMapFile = ap->getOutBeammapFits();
           
           cerr << "writing maps to " << mapFile << endl;
+
           obs->writeBeammapsToNcdf(mapFile);
           if (fitsMapFile)
-              obs->writeBeammapsToFits(string(fitsMapFile));
-          
+             obs->writeBeammapsToFits(string(fitsMapFile));
+
           cerr << "writing fit parameters to " << mapFile << endl;
           obs->writeFitParamsToNcdf(mapFile, fitParams);
         }
