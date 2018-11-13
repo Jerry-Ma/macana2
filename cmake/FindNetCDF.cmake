@@ -2,7 +2,8 @@
 # Find the native NetCDF includes and library
 #
 #  NETCDF_INCLUDE_DIR  - user modifiable choice of where netcdf headers are
-#  NETCDF_LIBRARY      - user modifiable choice of where netcdf libraries are
+#  NETCDF_LIBRARY_DIR  - user modifiable choice of where netcdf libraries are
+#  NETCDF_DIR          - user modifiable choice of the netcdf install prefix (default: /usr)
 #
 # Your package can require certain interfaces to be FOUND by setting these
 #
@@ -33,10 +34,10 @@
 #  target_link_libraries (only_uses_f90 ${NETCDF_F90_LIBRARIES})
 
 #search starting from user editable cache var
-if (NETCDF_INCLUDE_DIR AND NETCDF_LIBRARY)
+# if (NETCDF_INCLUDE_DIR AND NETCDF_LIBRARY_DIR)
   # Already in cache, be silent
-  set (NETCDF_FIND_QUIETLY TRUE)
-endif ()
+#  set (NETCDF_FIND_QUIETLY TRUE)
+# endif ()
 
 if (NOT NETCDF_DIR)
   set (NETCDF_DIR "/usr")
@@ -52,7 +53,10 @@ find_path (NETCDF_INCLUDE_DIR netcdf.h
 mark_as_advanced (NETCDF_INCLUDE_DIR)
 set (NETCDF_C_INCLUDE_DIRS ${NETCDF_INCLUDE_DIR})
 
-find_library (NETCDF_LIBRARY NAMES netcdf
+find_library (NETCDF_LIBRARY
+  NAMES netcdf
+  NAMES libnetcdf.so.11  # ubuntu 16.04
+  PATHS "${NETCDF_LIBRARY_DIR}"
   PATHS "${NETCDF_DIR}/lib"
   HINTS "${NETCDF_INCLUDE_DIR}/../lib")
 mark_as_advanced (NETCDF_LIBRARY)
