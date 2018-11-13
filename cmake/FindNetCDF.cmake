@@ -38,6 +38,10 @@ if (NETCDF_INCLUDE_DIR AND NETCDF_LIBRARY)
   set (NETCDF_FIND_QUIETLY TRUE)
 endif ()
 
+if (NOT NETCDF_DIR)
+  set (NETCDF_DIR "/usr")
+endif ()
+
 set(USE_DEFAULT_PATHS "NO_DEFAULT_PATH")
 if(NETCDF_USE_DEFAULT_PATHS)
   set(USE_DEFAULT_PATHS "")
@@ -68,11 +72,13 @@ macro (NetCDF_check_interface lang header libs)
     find_path (NETCDF_${lang}_INCLUDE_DIR NAMES ${header}
       HINTS "${NETCDF_INCLUDE_DIR}"
       HINTS "${NETCDF_${lang}_ROOT}/include"
+      PATHS "${NETCDF_DIR}/include"
       ${USE_DEFAULT_PATHS})
 
     find_library (NETCDF_${lang}_LIBRARY NAMES ${libs}
       HINTS "${NetCDF_lib_dirs}"
       HINTS "${NETCDF_${lang}_ROOT}/lib"
+      PATHS "${NETCDF_DIR}/lib"
       ${USE_DEFAULT_PATHS})
 
     mark_as_advanced (NETCDF_${lang}_INCLUDE_DIR NETCDF_${lang}_LIBRARY)
