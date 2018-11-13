@@ -72,7 +72,10 @@ elseif (OpenMP_CXX_FOUND AND (NOT ${WITH_OPENMP}))
 elseif (${WITH_OPENMP})
     message(FATAL_ERROR "Cannot find OpenMP, abort")
 endif()
-include_directories(${CMAKE_BINARY_DIR})  # version header
+set(include_directories
+    {CMAKE_BINARY_DIR}   # version header
+    ${CXSPARSE_INCLUDE_DIRS}
+)
 
 # manana core
 add_library(
@@ -122,6 +125,7 @@ target_include_directories(
     macana-core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas
+    ${include_directories}
     )
 target_link_libraries(
     macana-core PUBLIC
