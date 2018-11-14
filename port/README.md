@@ -37,14 +37,35 @@ the data stage (timestream, map, etc.) to avoid name clash:
 
     namespace timestream {
 
-        void despike(const InDataType& in, OutDataType& out, [ArgType arg [ArgType arg2] ...]) {
+        void despike_<imple1>(
+            const InDataType& in, [const InDataTyle2 in2, ...]
+            OutDataType& out, [OutDataType& out out2, ...]
+            [ArgType arg [ArgType arg2] ...]
+            ) {
+            ...
+            <core algorithms>
+            ...
+        }
+
+        void despike_<imple2>(
+            const InDataType& in, [const InDataTyle2 in2, ...]
+            OutDataType& out, [OutDataType& out out2, ...]
+            [ArgType arg [ArgType arg2] ...]
+            ) {
+            ...
+            <core algorithms>
+            ...
         }
 
     }
 
-The first two arguments should be the input and output data. The input data
-shall be passed as const reference and the output data shall be passed as reference
-and will be populated/modified at the end of the function call.
+There could be multiple implementation of the same algorithm. These should be
+differentiated by the extra suffix to the function name, e.g., `despike_cpu`,
+`despike_gpu`.
+
+The first two sets of arguments should be the input and output data. The input
+data shall be passed as const reference and the output data shall be passed as
+reference and will be populated/modified at the end of the function call.
 
 The rest of the arguments are all other tunable parameters. We prefer use a flat
 list of arguments rather than a struct to pass the parameters to make the functionality
@@ -62,16 +83,43 @@ that groups related parameters is desired:
         ...
     }
 
-# test/test_port_*.cpp
+The function body should be the actual data handling part, and it should not
+contain code that create objects to be used elsewhere outside of the scope of
+the function, instead, these objects need to be created outside and passed as
+output data.
+
+Temporary data are OK to be created with the scope of the function while being
+aware of the extra memory pressure.
+
+
+## test/test_port_*.cpp
 
 The `test/test_port_*.cpp` is the place where tests reside.
 
-## Function level unit tests
+### Function level unit tests
 
 Each `port_<stage>_<func>.cpp` should comes with a
 `test_port_<stage>_<func>.cpp`, in which a test fixture is defined. A test
 fixture is a class that provide the run-time of a test case, and the test body
-have full access to the members and methods to the fixture:
+have full access to the members and methods to the fixture.
+
+Any code that is responsible to setup the input/output data, and is to be
+used by multiple different implementations of the same algorithm should be
+put into the fixture class.
+
+For each function, there should be at least one unit test covering the function
+to make sure it works as expected.
+
+To setup the inputs, it is recommended for function level unit tests to use
+generated/simulated/theoretical data rather than external data. Although for
+some cases, the latter could still be used as a last resort or by necessity.
+
+In the test body, ideally there should only be the function call and assertion
+clause, although in some cases, some massage of the data is needed prior to the
+function call.
+
+Google test also support parameterized tests, which basically
+allows crating multiple tests with different parameters the runs the same code.
 
     #include <gtest/gtest.h>
     #include "AnalParams.h"
@@ -111,7 +159,7 @@ and learn the capability of it, and use. some links:
 * https://github.com/google/googletest/blob/master/googletest/docs/samples.md
 
 
-## State level test
+### State level test
 
 More integrated test also goes in the `port/test` folder, e.g.
 
@@ -122,9 +170,42 @@ the data is handled in the pipeline. It is up to the programmers to implement
 in whichever way they prefer. It may or may not depends on the google test framework.
 
 
-# Container classes and other stuff
+# Container classes and other new stuff
 
-The `port/` folder shall be indepedant to anyof the old macana2 classes, except
-that the algorithm body code are copied over from the original macana2 classes.
-Therefore we should focus on exploring and utilizing new data container classes
-that will be used in Citlali, such as `Eigen3`.
+The `port/` folder shall be independent to any of the old `macana` classes,
+except that the algorithm body codes are copied over from the original macana2
+classes. Therefore we should focus on exploring and utilizing new data
+container classes as well as new libraries that will be used or tested in
+Citlali, such as `Eigen3`.
+
+## External Dependencies
+
+The external dependencies shall be put into `port/CMakeLists.txt`, where rules
+to generate the `test_port` executable will be created.
+
+TODO: instructions to add an external dependency in `cmake`.
+
+# Git-flow
+
+We use git-flow to manage the whole development process.
+
+To port an algorithm:
+
+1. Open an issue "Port stage func ...", or some other sensible name
+2. Label the issue with "citlali-port"
+2. Create a feature branch "feature/x-port-xxx-xxx"
+3. Open a pull request of the feature branch to the develop branch, include
+   "resolves #x" in the pull request body to signal a reference to the issue
+   related
+4. Write and commit the code to the feature branch
+5. Notify the code reviewer to review upon finish
+6. Work back-and-forth with reviewer to address any problems
+7. Merge the pull request to the develop branch
+
+# Port back to macana
+
+At some point, we may want to port the code back to `macana`. It could be
+easily done by swapping out (rename) the original methods in the `macana`
+classes, creating a new method with the original name, and implement using the
+new functions in the `port` folder. We will do this as a practice before we do
+the `citlali`.
