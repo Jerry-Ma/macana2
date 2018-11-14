@@ -55,7 +55,6 @@ set (NETCDF_C_INCLUDE_DIRS ${NETCDF_INCLUDE_DIR})
 
 find_library (NETCDF_LIBRARY
   NAMES netcdf
-  NAMES libnetcdf.so.11  # ubuntu 16.04
   PATHS "${NETCDF_LIBRARY_DIR}"
   PATHS "${NETCDF_DIR}/lib"
   HINTS "${NETCDF_INCLUDE_DIR}/../lib")

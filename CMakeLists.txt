@@ -75,6 +75,7 @@ endif()
 set(include_directories
     {CMAKE_BINARY_DIR}   # version header
     ${CXSPARSE_INCLUDE_DIRS}
+    ${NETCDF_INCLUDE_DIRS}
 )
 
 # manana core
