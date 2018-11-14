@@ -75,7 +75,6 @@ endif()
 set(include_directories
     {CMAKE_BINARY_DIR}   # version header
     ${CXSPARSE_INCLUDE_DIRS}
-    ${NETCDF_INCLUDE_DIRS}
 )
 
 # manana core
@@ -165,6 +164,33 @@ foreach(exec ${exec_list})
         ${${exec}_libs}
         )
 endforeach(exec ${exec_list})
+
+
+
+
+OPTION(EXEC_TEST "Create execuable test?" OFF)
+##To create executable test write:
+#cmake .. -DEXEC_TEST=ON
+IF (EXEC_TEST)
+find_package(GTest REQUIRED)
+
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG        master
+)
+
+FetchContent_GetProperties(googletest)
+if(NOT googletest_POPULATED)
+  FetchContent_Populate(googletest)
+  add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
+endif()
+
+add_subdirectory (test)
+
+
+ENDIF (EXEC_TEST)
 
 ## docs
 # https://vicrucann.github.io/tutorials/quick-cmake-doxygen/
