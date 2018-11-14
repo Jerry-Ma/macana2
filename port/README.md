@@ -31,8 +31,8 @@ minimum changes will be required during the actual porting phase.
 
 ## port_*.cpp
 
-The `port_*.cpp` file should contain no class but a (stateless) function that
-implements the algorithm to be ported, enclosed by a named namespace matches
+The `port_*.cpp` file should contain no class but (stateless) function(s) that
+implement the algorithm to be ported, enclosed by a named namespace matches
 the data stage (timestream, map, etc.) to avoid name clash:
 
     namespace timestream {
@@ -191,12 +191,15 @@ We use git-flow to manage the whole development process.
 
 To port an algorithm:
 
-1. Open an issue "Port stage func ...", or some other sensible name
-2. Label the issue with "citlali-port"
-2. Create a feature branch "feature/x-port-xxx-xxx"
+1. (optional) Open an issue "Port some func in some stage ...", or some other sensible name.
+   This step can be omitted, if you prepare
+   to contribute code via pull request. In that case any discussion will be done in the body
+   of the pull request and the pull request is essentially the issue. This is to reduce cluttering
+2. Create a feature branch "feature/x-port-xxx-xxx". x should be the issue number in (1) if done,
+   or 5, which is the number of "master" issue
 3. Open a pull request of the feature branch to the develop branch, include
    "resolves #x" in the pull request body to signal a reference to the issue
-   related
+   related.
 4. Write and commit the code to the feature branch
 5. Notify the code reviewer to review upon finish
 6. Work back-and-forth with reviewer to address any problems
