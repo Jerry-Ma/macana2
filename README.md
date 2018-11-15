@@ -10,21 +10,21 @@ This will create a folder of name `macana2` in your current directory.
 
 ## Build `Macana2`
 
-`Macana2` consists of with two sets of programs:
+`Macana2` consists of multiple sub-programs:
 
-* Production tools
+* Production programs
 
     * include `macanap` and `beammap`
     * for actuall data processing
     * run the same way as the original `macana` (a. k. a., `aztec_c++`).
 
-* Testing tools
+* Development programs
 
-    * include `beammap_gui` and `macana_test`
+    * include `beammap_gui`, `macana2_test`, and `port_test`
     * for development and diagnostic purpose
 
-While both of these depend on some common external libraries to compile and
-run, the testing tools require additional software packages and settings.
+While all of these depend on some common external libraries to compile and
+run, the development programs require additional software packages and settings.
 
 Build guides:
 
@@ -60,22 +60,25 @@ Build guides:
         # replace "x.x.x" with the actual version numbers
         ln -s /usr/local/Cellar/suite-sparse/x.x.x/include /usr/local/include/suitesparse
 
-#### Build production tools
+#### Build production programs
 
-With the common dependencies installed, we can build the production tools
-using `cmake`:
+With the common dependencies installed, we can build the production programs
+with `cmake`:
 
     cd macana2
     mkdir build
     cd build
     cmake ..
+    make
 
+The binaries will be in `build/bin/`.
 
-#### Install dependencies for testing tools
+#### Install dependencies for development programs
 
-The testing GUI is built using `Qt`, and the unittests uses
-`Google Test` framework. `qmake` from `Qt` is needed to generate
-the `Makefile` to build both tools.
+##### `beammap_gui`
+
+The `beammap_gui` is built using `Qt`. `qmake` from `Qt` is needed to generate
+the `Makefile` to build the executable.
 
 * Install `Qt` and `qmake`
 
@@ -90,18 +93,25 @@ the `Makefile` to build both tools.
         /Applications/Qt/5.11.2/clang_64/bin/qmake
 
 
-* Install `Google Test Framework`
+##### `macana2_test` and `port_test`
 
-    `Google Test` is not available in Homebrew by default, but we could still
-    install it with a custom recipe by
-    [Kronuz](https://gist.githubusercontent.com/Kronuz/96ac10fbd8472eb1e7566d740c4034f8/raw/gtest.rb):
+Both of these include unit tests that are written using the Google Test
+Framework. To compile these programs, one can use either `qmake` or `cmake`
 
-        brew install --HEAD https://gist.githubusercontent.com/Kronuz/96ac10fbd8472eb1e7566d740c4034f8/raw/gtest.rb
+To use `qmake`, one has to install Google Test Framework separately.
+Google Test, however, is not available in Homebrew by default, but we could still
+install it with a custom recipe by
+[Kronuz](https://gist.githubusercontent.com/Kronuz/96ac10fbd8472eb1e7566d740c4034f8/raw/gtest.rb):
 
-#### Build testing tools
+    brew install --HEAD https://gist.githubusercontent.com/Kronuz/96ac10fbd8472eb1e7566d740c4034f8/raw/gtest.rb
 
-Once the additional dependencies are installed, we can build the testing
-tools using `qmake`:
+The `cmake` does not use Google Test as an external dependency, instead it will
+pull the source code during the build time. Therefore, we don't need to install
+Google Test separately.
+
+#### Build development programs
+
+Once the additional dependencies are installed, we can build the development programs using `qmake`:
 
     cd macana2
     mkdir qtbuild
@@ -116,18 +126,31 @@ run the project.
 Caveat: In `Qt Creator`, the default "Run" settings under "Project" tab may have "Add build library search path to ..." checked.
 Uncheck if the program could not find the shared/dylib libraries at runtime.
 
+
+Or using cmake to build the unit tests:
+
+    cd macana2/build
+    cmake ..
+    make macana2_test
+    make port_test
+
 ## Run `Macana2`
 
-### Production tools
+### Production programs
 
 The executables including `macanap` and `beammap` reside in `build/bin/`, e.g.,
 
     /path/to/build_dir/bin/beammap apb.xml
 
-### Testing tools
+### Development programs
 
-The `beammap_gui` executable is in `qtbuild/beammap_gui/`, and `macana_test`
-is in `qtbuild/test/`.
+The `beammap_gui` executable is in `qtbuild/beammap_gui/`.
+
+The unit tests `macana2_test` is in `qtbuild/test/` or `build/test`, depending on
+which make-tool is used.
+
+The unit tests `port_test` is in `qtbuild/port` or `build/port`, depending on
+which make-tool is used.
 
 
 ## Documentation
