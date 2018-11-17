@@ -1,4 +1,6 @@
-project(citlali_port LANGUAGES CXX C)
+project(port_test LANGUAGES CXX C)
+
+find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 
 add_executable(port_test EXCLUDE_FROM_ALL)
 set_target_properties(port_test
@@ -7,6 +9,7 @@ set_target_properties(port_test
 )
 target_sources(port_test
     PRIVATE
+        port_generic_curvefit.cpp
         test/test_port_generic_curvefit.cpp
     )
 target_include_directories(port_test
@@ -17,6 +20,7 @@ target_include_directories(port_test
 target_link_libraries(port_test
     PRIVATE
         gtest gtest_main
+        Eigen3::Eigen
     )
 add_custom_command(TARGET port_test
     POST_BUILD
