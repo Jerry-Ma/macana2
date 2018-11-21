@@ -135,7 +135,7 @@ struct Model: DenseFunctor<double, NP, Dynamic>
     template<typename OStream, typename _Model>
     friend OStream &operator<<(OStream &os, const _Model& m)
     {
-        return os << m.name << "[NP=" << static_cast<int>(_Model::InputsAtCompileTime) << ",ND=" << static_cast<int>(_Model::DimensionsAtCompileTime) << "]";
+        return os << m.name << "(NP=" << static_cast<int>(_Model::InputsAtCompileTime) << ",ND=" << static_cast<int>(_Model::DimensionsAtCompileTime) << ")";
     }
 };
 
@@ -236,7 +236,7 @@ Model curvefit_eigen3(
     auto logger = spdlog::get("curvefit");
     if (!logger) logger = spdlog::stdout_color_mt("curvefit");
     logger->set_level(spdlog::level::debug);
-    logger->debug("fit model {} on data of size {}", model, p, xdata.size());
+    logger->info("fit model {} on data{}", model, logging::pprint(&xdata));
 
     LSQFitter<Model> fitter(&model, xdata.size());
     fitter.xdata = &xdata;
@@ -249,13 +249,12 @@ Model curvefit_eigen3(
     LevenbergMarquardt<LevMarLSQ, typename Model::Scalar> lm(lmlsq);
 
     VectorXd pp(p);
-    logger->debug("initial params {}", pp);
+    logger->info("initial params{}", logging::pprint(&p));
 
     int info = lm.minimize(pp);
-    logger->debug("fitted params {}", pp);
+    logger->debug("fitted params{}", logging::pprint(&pp));
     logger->info("success = {}, nfev = {}, njev = {}", info, lm.nfev, lm.njev);
-    logger->info("fvec.squaredNorm() : {:.13f}", lm.fvec.squaredNorm());
-
+    logger->info("fvec.squaredNorm = {}", lm.fvec.squaredNorm());
     return Model(pp);;
 }
 
