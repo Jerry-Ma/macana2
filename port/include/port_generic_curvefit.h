@@ -4,6 +4,10 @@
 #include <Eigen/Core>
 #include <unsupported/Eigen/NonLinearOptimization>
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "logging.h"
+
 namespace generic {
 
 using namespace Eigen;
@@ -21,35 +25,60 @@ struct DenseFunctor
     using InputType = Matrix<Scalar,InputsAtCompileTime,1>;
     using ValueType = Matrix<Scalar,ValuesAtCompileTime,1>;
 
-    DenseFunctor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
-    DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
+    DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {
+        setupLogger("functor");
+    }
+    // default
+    DenseFunctor(): DenseFunctor(InputsAtCompileTime, ValuesAtCompileTime) {}
 
     int inputs() const { return m_inputs; }
     int values() const { return m_values; }
 
     // operator()
     // should be defined in subclasses
+    /*
+    template<typename OStream, typename Functor>
+    friend OStream &operator<<(OStream &os, const Functor& f)
+    {
+        return os << f.logger->name();
+    }
+    */
 protected:
-    int m_inputs;
-    int m_values;
+    int m_inputs = InputsAtCompileTime;
+    int m_values = ValuesAtCompileTime;
+
+    void setupLogger(const std::string_view& name)
+    {
+        logger = std::make_shared<spdlog::logger>(
+                    fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(this)),
+                    logging::console);
+        logger->set_level(spdlog::level::debug);
+    }
+    std::shared_ptr<spdlog::logger> logger;
 };
+
 
 // Model is a functor working on double (do we need model of other types?)
 // NP -- number of input parameters
 // ND -- number of demensions of input data
 template <int NP=Dynamic, int ND=Dynamic>
-struct Model: DenseFunctor<double, Dynamic, Dynamic>
+struct Model: DenseFunctor<double, NP, Dynamic>
 {
-    using _Base = DenseFunctor<double, Dynamic, Dynamic>;
+    enum {
+        DimensionsAtCompileTime = ND
+    };
+    using _Base = DenseFunctor<double, NP, Dynamic>;
     using DataType = Matrix<double, Dynamic, Dynamic>;
     using InputDataType = Matrix<double, Dynamic, ND>;
     using InputDataBasisType = Matrix<double, Dynamic, 1>;
 
-    Model(): _Base() {}
-    // via copy of params
-    Model(const typename _Base::InputType& params): _Base(static_cast<int>(params.size()), Dynamic), params(params) {}
+    constexpr static std::string_view name = "model";
     // via known size of params
-    Model(int inputs): _Base(inputs, Dynamic), params(inputs) {}
+    Model(int inputs): _Base(inputs, Dynamic), params(inputs) {
+        Model::setupLogger(Model::name);
+    }
+    // via copy of params
+    Model(const typename _Base::InputType& params): Model(static_cast<int>(params.size())) {this->params=params;}
     // via initializer list of params
     Model(std::initializer_list<double> params): Model(static_cast<int>(params.size()))
     {
@@ -59,6 +88,8 @@ struct Model: DenseFunctor<double, Dynamic, Dynamic>
             ++i;
         }
     }
+    // default
+    Model(): Model(Model::InputsAtCompileTime) {}
 
     /*
     // via varadic template for cleaner syntax
@@ -71,7 +102,7 @@ struct Model: DenseFunctor<double, Dynamic, Dynamic>
         for (int i = 0; const auto& x: {xs...}) {m_params[i++] = x;
     }
     */
-    typename _Base::InputType params;
+    typename Model::InputType params;
 
     // eval()
     // should be defined to take (ndata, ndim) mesh and return vector of (ndata, 1)
@@ -100,11 +131,18 @@ struct Model: DenseFunctor<double, Dynamic, Dynamic>
         }
         return xy;
     }
+
+    template<typename OStream, typename _Model>
+    friend OStream &operator<<(OStream &os, const _Model& m)
+    {
+        return os << m.name << "[NP=" << static_cast<int>(_Model::InputsAtCompileTime) << ",ND=" << static_cast<int>(_Model::DimensionsAtCompileTime) << "]";
+    }
 };
 
 
 struct Gaussian1D: Model<3, 1> // 3 params, 1 dimen
 {
+    constexpr static std::string_view name = "gaussian1d";
     using Model<3, 1>::Model; // model constructors
     Gaussian1D(double amplitude=1., double mean=0., double stddev=1.);
 
@@ -114,14 +152,14 @@ struct Gaussian1D: Model<3, 1> // 3 params, 1 dimen
     // convinient methods
     ValueType operator() (const InputType& p, const InputDataType& x) const;
     ValueType operator() (const InputDataType& x) const;
-
 };
 
 struct Gaussian2D: Model<6, 2>  // 6 params, 2 dimen
 {
+    constexpr static std::string_view name = "gaussian2d";
     using Model<6, 2>::Model; // model constructors;
-
     Gaussian2D(double amplitude=1., double xmean=0., double ymean=0., double xstddev=1., double ystddev=1., double theta=0.);
+    ~Gaussian2D(){}
 
     // operates on meshgrid xy of shape (ny * nx, 2), return a flat vector
     ValueType eval(const InputType& p, const InputDataType& xy) const;
@@ -145,9 +183,10 @@ struct Fitter: _Model::_Base
     using _Base = typename _Model::_Base;
     using Model = _Model;
 
-    Fitter (const Model* model): _Base(), m_model(model) {}
-    Fitter (const Model* model, int values): _Base(model->inputs(), values), m_model(model) {}
-
+    Fitter (const Model* model, int values): _Base(model->inputs(), values), m_model(model) {
+        Fitter::setupLogger("fitter");
+    }
+    Fitter (const Model* model): Fitter(model, Fitter::InputsAtCompileTime) {}
 
     const Model* model() const {return m_model;}
 
@@ -194,6 +233,11 @@ Model curvefit_eigen3(
                     const typename Model::ValueType& sigma      // uncertainty
                     )
 {
+    auto logger = spdlog::get("curvefit");
+    if (!logger) logger = spdlog::stdout_color_mt("curvefit");
+    logger->set_level(spdlog::level::debug);
+    logger->debug("fit model {} on data of size {}", model, p, xdata.size());
+
     LSQFitter<Model> fitter(&model, xdata.size());
     fitter.xdata = &xdata;
     fitter.ydata = &ydata;
@@ -202,14 +246,15 @@ Model curvefit_eigen3(
     using LevMarLSQ = NumericalDiff<LSQFitter<Model>>;
     LevMarLSQ lmlsq(fitter);
 
-    VectorXd pp(p);
     LevenbergMarquardt<LevMarLSQ, typename Model::Scalar> lm(lmlsq);
-    std::cout << pp << std::endl;
+
+    VectorXd pp(p);
+    logger->debug("initial params {}", pp);
 
     int info = lm.minimize(pp);
-    std::cout << pp << std::endl;
-    printf("info, nfev, njev : %d, %ld, %ld\n", info, lm.nfev, lm.njev);
-    printf("fvec.squaredNorm() : %.13g\n", lm.fvec.squaredNorm());
+    logger->debug("fitted params {}", pp);
+    logger->info("success = {}, nfev = {}, njev = {}", info, lm.nfev, lm.njev);
+    logger->info("fvec.squaredNorm() : {:.13f}", lm.fvec.squaredNorm());
 
     return Model(pp);;
 }
