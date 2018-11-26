@@ -119,14 +119,20 @@ struct Model: DenseFunctor<double, NP, Dynamic>
     template <typename T=InputDataType>
     typename std::enable_if<ND == 2, T>::type meshgrid(const InputDataBasisType& x, const InputDataBasisType& y) const
     {
+        // column major
+        // [x0, y0,] [x1, y0] [x2, y0] ... [xn, y0] [x0, y1] ... [xn, yn]
         const long nx = x.size(), ny = y.size();
         InputDataType xy(nx * ny, 2);
+        // map xx [ny, nx] to the first column of xy
         Map<MatrixXd> xx(xy.data(), ny, nx);
+        // map yy [ny, nx] to the second column of xy
         Map<MatrixXd> yy(xy.data() + xy.rows(), ny, nx);
-        for (long i = 0; i < ny; ++i) {
+        // populate xx such that each row is x
+        for (Index i = 0; i < ny; ++i) {
             xx.row(i) = x.transpose();
         }
-        for (long j = 0; j < nx; ++j) {
+        // populate yy such that each col is y
+        for (Index j = 0; j < nx; ++j) {
             yy.col(j) = y;
         }
         return xy;
@@ -175,6 +181,27 @@ struct Gaussian2D: Model<6, 2>  // 6 params, 2 dimen
             const InputDataBasisType& y) const;
 };
 
+struct SymmetricGaussian2D: Model<4, 2>  // 4 params, 2 dimen
+{
+    constexpr static std::string_view name = "symmetricgaussian2d";
+    using Model<4, 2>::Model; // model constructors;
+    SymmetricGaussian2D(double amplitude=1., double xmean=0., double ymean=0., double stddev=1.);
+    ~SymmetricGaussian2D(){}
+
+    // operates on meshgrid xy of shape (ny * nx, 2), return a flat vector
+    ValueType eval(const InputType& p, const InputDataType& xy) const;
+
+    // convinient methods
+    // operates on x and y coords separately. return a (ny, nx) matrix
+    DataType operator() (
+            const InputType& p,
+            const InputDataBasisType& x,
+            const InputDataBasisType& y) const;
+    DataType operator() (
+            const InputDataBasisType& x,
+            const InputDataBasisType& y) const;
+};
+
 // Fitter is a functor that matches the data types of the Model.
 // Fitter relies on the eval() method
 template <typename _Model>
@@ -190,9 +217,9 @@ struct Fitter: _Model::_Base
 
     const Model* model() const {return m_model;}
 
-    const typename Model::DataType* xdata = nullptr;  // set via meshgrid
-    const typename Fitter::ValueType* ydata = nullptr;
-    const typename Fitter::ValueType* sigma = nullptr;
+    const Map<const typename Model::InputDataType>* xdata = nullptr;  // set via meshgrid
+    const Map<const typename Fitter::ValueType>* ydata = nullptr;
+    const Map<const typename Fitter::ValueType>* sigma = nullptr;
 
     //int operator()(const InputType &x, ValueType& fvec) { }
     // should be defined in derived classes
@@ -214,6 +241,10 @@ struct LSQFitter: Fitter<Model>
     int operator() (const typename LSQFitter::InputType& p, typename LSQFitter::ValueType& fvec, [[maybe_unused]] JacobianType* _j=0) const
     {
         fvec = (this->ydata->array() - this->model()->eval(p, *this->xdata).array()) / this->sigma->array();
+        this->logger->debug("fit with xdata{}", logging::pprint(this->xdata));
+        this->logger->debug("fit with ydata{}", logging::pprint(this->ydata));
+        this->logger->debug("fit with sigma{}", logging::pprint(this->sigma));
+        this->logger->debug("residual{}", logging::pprint(&fvec));
         return 0;
     }
 
@@ -228,9 +259,9 @@ template <typename Model>
 Model curvefit_eigen3(
                     const Model& model,  // y = f(x)
                     const typename Model::InputType& p,         // initial guess of model parameters
-                    const typename Model::DataType& xdata,     // x data values, independant variable
-                    const typename Model::ValueType& ydata,     // y data values, measurments
-                    const typename Model::ValueType& sigma      // uncertainty
+                    const typename Model::InputDataType& xdata,     // x data values, independant variable
+                    const typename Model::DataType& ydata,     // y data values, measurments
+                    const typename Model::DataType& sigma      // uncertainty
                     )
 {
     auto logger = spdlog::get("curvefit");
@@ -238,12 +269,16 @@ Model curvefit_eigen3(
     logger->set_level(spdlog::level::debug);
     logger->info("fit model {} on data{}", model, logging::pprint(&xdata));
 
-    LSQFitter<Model> fitter(&model, xdata.size());
-    fitter.xdata = &xdata;
-    fitter.ydata = &ydata;
-    fitter.sigma = &sigma;
+    using Fitter = LSQFitter<Model>;
+    Fitter fitter(&model, xdata.size());
+    Map<const typename Model::InputDataType> _x(xdata.data(), xdata.rows(), xdata.cols());
+    Map<const typename Fitter::ValueType> _y(ydata.data(), ydata.size());
+    Map<const typename Fitter::ValueType> _s(sigma.data(), sigma.size());
+    fitter.xdata = &_x;
+    fitter.ydata = &_y;
+    fitter.sigma = &_s;
 
-    using LevMarLSQ = NumericalDiff<LSQFitter<Model>>;
+    using LevMarLSQ = NumericalDiff<Fitter>;
     LevMarLSQ lmlsq(fitter);
 
     LevenbergMarquardt<LevMarLSQ, typename Model::Scalar> lm(lmlsq);
@@ -253,8 +288,8 @@ Model curvefit_eigen3(
 
     int info = lm.minimize(pp);
     logger->debug("fitted params{}", logging::pprint(&pp));
-    logger->info("success = {}, nfev = {}, njev = {}", info, lm.nfev, lm.njev);
-    logger->info("fvec.squaredNorm = {}", lm.fvec.squaredNorm());
+    logger->info("info={}, nfev={}, njev={}", info, lm.nfev, lm.njev);
+    logger->info("fvec.squaredNorm={}", lm.fvec.squaredNorm());
     return Model(pp);;
 }
 

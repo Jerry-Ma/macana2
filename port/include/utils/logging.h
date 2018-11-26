@@ -35,7 +35,7 @@ private:
         else if (m->cols() < 3)
             return IOFormat(StreamPrecision, DontAlignCols, ", ", " ", "[", "]", "[", "]");
         else
-            return IOFormat(StreamPrecision, 0, ", ", "\n", "[", "]");
+            return IOFormat(StreamPrecision, 0, ", ", "\n", "[", "]", "[\n", "]\n");
     }
     template <typename OStream, typename Derived>
     OStream & print_matrix(OStream & s, const Derived& _m, const IOFormat& fmt, int max_rows, int max_cols, int max_size=-1) const
@@ -103,7 +103,8 @@ private:
               if (width) s.width(width);
               s << m.coeff(i, j);
             }
-            s << "...";
+            // s << fmt.coeffSeparator << ".." << m.cols() - max_cols / 2 * 2 << " items..";
+            s << fmt.coeffSeparator << "...";
             for (Index j = m.cols() -  max_cols / 2; j < m.cols(); ++j)
             {
               s << fmt.coeffSeparator;
@@ -123,6 +124,8 @@ private:
       } else {
           for (Index i = 0; i < max_rows / 2; ++i)
               print_row(s, i);
+          if(width) s.width(width);
+          // s << ".." << m.rows() - max_rows / 2 * 2 << " items.." << fmt.rowSeparator;
           s << "..." << fmt.rowSeparator;
           for (Index i = m.rows() - max_rows / 2; i < m.rows(); ++i)
               print_row(s, i);
