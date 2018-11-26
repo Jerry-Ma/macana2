@@ -286,7 +286,7 @@ int main(int nArgs, char* args[])
     //the sensitivity calculation currently suffers from both errors and memory leaks
     for(int i=0;i<array->getNDetectors();i++){
       array->detectors[di[i]].calibrate();
-      //array->detectors[di[i]].calculateSensitivity(telescope);
+      array->detectors[di[i]].calculateSensitivity(telescope);
     }
 
     cerr << "generating bstats file" << endl;
