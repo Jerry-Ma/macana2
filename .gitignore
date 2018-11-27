@@ -73,7 +73,7 @@ Thumbs.db
 
 # unused stuff
 trunk/
-CMakeLists.txt.user
+CMakeLists.txt.user*
 build/
 qtbuild/
 VERSION
