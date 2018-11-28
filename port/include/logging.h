@@ -2,9 +2,13 @@
 #define LOGGING_H
 
 #include <Eigen/Core>
+
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <spdlog/spdlog.h>
-#include "spdlog/sinks/stdout_color_sinks.h"
-#include "spdlog/fmt/ostr.h"
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/fmt/ostr.h>
+#undef SPDLOG_LOGGER_TRACE
+#define SPDLOG_LOGGER_TRACE(logger, ...) logger->log(spdlog::source_loc{}, spdlog::level::trace, __VA_ARGS__)
 
 namespace logging {
 

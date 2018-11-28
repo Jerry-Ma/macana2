@@ -1,6 +1,20 @@
 project(port_test LANGUAGES CXX C)
 
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        v1.x
+)
+FetchContent_GetProperties(spdlog)
+if(NOT spdlog_POPULATED)
+    FetchContent_Populate(spdlog)
+    add_subdirectory(${spdlog_SOURCE_DIR} ${spdlog_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+find_package(spdlog)
+print_target_properties(spdlog::spdlog)
+
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(Ceres REQUIRED COMPONENTS C++11 OpenMP)
 find_package( OpenCV REQUIRED )
 
 add_executable(port_test EXCLUDE_FROM_ALL)
@@ -17,10 +31,10 @@ target_include_directories(port_test
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/utils
     )
 target_link_libraries(port_test
     PRIVATE
+        spdlog::spdlog
         gtest gtest_main
         Eigen3::Eigen
         ${OpenCV_LIBS}

@@ -43,7 +43,10 @@ configure_file(
 )
 message("Update gitversion.h")
 
-# dependencies
+# handle dependencies pulled during configure-time
+include(FetchContent)
+
+# dependencies installed in system
 find_package(OpenMP)
 find_package(GSL REQUIRED)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
@@ -53,7 +56,8 @@ find_package(NetCDF REQUIRED COMPONENTS CXX)
 find_package(CCFits REQUIRED)  # this one also find cfitsio
 find_package(CXSparse REQUIRED)
 
-include(PrintProperties)  # helper to print target attrs
+# helper to print target attrs
+include(PrintProperties)
 print_target_properties(OpenMP::OpenMP_CXX)
 print_target_properties(GSL::gsl)
 print_target_properties(GSL::gslcblas)
@@ -174,7 +178,6 @@ add_custom_command(TARGET beammap
 
 # setup testing framework
 if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
-    include(FetchContent)
     FetchContent_Declare(
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
@@ -188,7 +191,7 @@ if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
     enable_testing()
     # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
     add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-    find_package(GTest)
+    find_package(GTest REQUIRED)
     include(GoogleTest)
 endif()
 

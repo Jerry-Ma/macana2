@@ -10,11 +10,10 @@
 #include <opencv2/core/eigen.hpp>
 
 #define CVUI_IMPLEMENTATION
-#include "utils/opencv/cvui.h"
-#include "utils/opencv/enhancedwindow.h"
+#include "opencv/cvui.h"
+#include "opencv/enhancedwindow.h"
 
 #include "port_generic_curvefit.h"
-#include "utils/logging.h"
 
 namespace {
 
@@ -237,6 +236,7 @@ TEST_F(CurveFitTest, curvefit_eigen3_gaussian1d_simple) {
     // EXPECT_THAT(pp, Pointwise(NearWithPrecision(1e-5), expected_pp));
 }
 
+/*
 TEST_F(CurveFitTest, curvefit_eigen3_gaussian1d_roundtrip) {
 
 
@@ -312,5 +312,6 @@ TEST_F(CurveFitTest, curvefit_eigen3_symmetricgaussian2d_roundtrip) {
     EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
     // EXPECT_THAT(pp, Pointwise(NearWithPrecision(1e-5), expected_pp));
 }
+*/
 
-}
+}  // namespace

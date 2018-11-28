@@ -4,8 +4,6 @@
 #include <Eigen/Core>
 #include <unsupported/Eigen/NonLinearOptimization>
 
-#include "spdlog/spdlog.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
 #include "logging.h"
 
 namespace generic {
@@ -52,7 +50,7 @@ protected:
         logger = std::make_shared<spdlog::logger>(
                     fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(this)),
                     logging::console);
-        logger->set_level(spdlog::level::debug);
+        logger->set_level(spdlog::level::trace);
     }
     std::shared_ptr<spdlog::logger> logger;
 };
@@ -240,11 +238,11 @@ struct LSQFitter: Fitter<Model>
 
     int operator() (const typename LSQFitter::InputType& p, typename LSQFitter::ValueType& fvec, [[maybe_unused]] JacobianType* _j=0) const
     {
-        fvec = (this->ydata->array() - this->model()->eval(p, *this->xdata).array()) / this->sigma->array();
-        this->logger->debug("fit with xdata{}", logging::pprint(this->xdata));
-        this->logger->debug("fit with ydata{}", logging::pprint(this->ydata));
-        this->logger->debug("fit with sigma{}", logging::pprint(this->sigma));
-        this->logger->debug("residual{}", logging::pprint(&fvec));
+        fvec = ((this->ydata->array() - this->model()->eval(p, *this->xdata).array()) / this->sigma->array()).eval();
+        SPDLOG_LOGGER_TRACE(this->logger, "fit with xdata{}", logging::pprint(this->xdata));
+        SPDLOG_LOGGER_TRACE(this->logger, "         ydata{}", logging::pprint(this->ydata));
+        SPDLOG_LOGGER_TRACE(this->logger, "         sigma{}", logging::pprint(this->sigma));
+        SPDLOG_LOGGER_TRACE(this->logger, "residual{}", logging::pprint(&fvec));
         return 0;
     }
 
@@ -287,7 +285,7 @@ Model curvefit_eigen3(
     logger->info("initial params{}", logging::pprint(&p));
 
     int info = lm.minimize(pp);
-    logger->debug("fitted params{}", logging::pprint(&pp));
+    logger->info("fitted params{}", logging::pprint(&pp));
     logger->info("info={}, nfev={}, njev={}", info, lm.nfev, lm.njev);
     logger->info("fvec.squaredNorm={}", lm.fvec.squaredNorm());
     return Model(pp);;
