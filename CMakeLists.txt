@@ -191,7 +191,7 @@ if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
     enable_testing()
     # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
     add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-    find_package(GTest REQUIRED)
+    # find_package(GTest REQUIRED)
     include(GoogleTest)
 endif()
 

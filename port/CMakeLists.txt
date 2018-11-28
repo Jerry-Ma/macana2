@@ -14,7 +14,7 @@ find_package(spdlog)
 print_target_properties(spdlog::spdlog)
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(Ceres REQUIRED COMPONENTS C++11 OpenMP)
+find_package(Ceres REQUIRED COMPONENTS C++11)
 find_package( OpenCV REQUIRED )
 
 add_executable(port_test EXCLUDE_FROM_ALL)
@@ -35,7 +35,8 @@ target_include_directories(port_test
 target_link_libraries(port_test
     PRIVATE
         spdlog::spdlog
-        gtest gtest_main
+        gtest gtest_main gmock
+        ceres
         Eigen3::Eigen
         ${OpenCV_LIBS}
     )

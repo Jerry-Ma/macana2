@@ -60,6 +60,25 @@ Gaussian2D::DataType Gaussian2D::operator() (
     return operator() (this->params, x, y);
 }
 
+Gaussian2D::InputType Gaussian2D::transform (
+        const Gaussian2D::InputType& p) const
+{
+    // fix degeneracy issue by constrain the position angle to [0, pi/2]
+    // pp[5] is [-inf, inf]
+    Gaussian2D::InputType pp(p);
+    pp[5] = tan(p[5] * 2. - PI / 2.);
+    return pp;
+}
+
+Gaussian2D::InputType Gaussian2D::inverseTransform (
+        const Gaussian2D::InputType& pp) const
+{
+    // p[5] is [0, pi/2]
+    Gaussian2D::InputType p(pp);
+    p[5] = (atan(pp[5]) + PI / 2.) / 2.;
+    return p;
+}
+
 SymmetricGaussian2D::SymmetricGaussian2D(double amplitude, double xmean, double ymean, double stddev)
     //             0          1      2      3
     : Model<4, 2>({amplitude, xmean, ymean, stddev}) {}

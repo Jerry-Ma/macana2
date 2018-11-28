@@ -1,6 +1,7 @@
 #ifndef PORT_GENERIC_CURVEFIT_H
 #define PORT_GENERIC_CURVEFIT_H
 
+#include <ceres/ceres.h>
 #include <Eigen/Core>
 #include <unsupported/Eigen/NonLinearOptimization>
 
@@ -51,6 +52,7 @@ protected:
                     fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(this)),
                     logging::console);
         logger->set_level(spdlog::level::trace);
+        logger->info("InputsAtCompileTime={} ValuesAtCompileTime={} inputs={} values={}", InputsAtCompileTime, ValuesAtCompileTime, inputs(), values());
     }
     std::shared_ptr<spdlog::logger> logger;
 };
@@ -141,6 +143,24 @@ struct Model: DenseFunctor<double, NP, Dynamic>
     {
         return os << m.name << "(NP=" << static_cast<int>(_Model::InputsAtCompileTime) << ",ND=" << static_cast<int>(_Model::DimensionsAtCompileTime) << ")";
     }
+
+    typename Model::InputType transform(const typename Model::InputType& p) const
+    {
+        return p;
+    }
+    typename Model::InputType inverseTransform(const typename Model::InputType& p) const
+    {
+        return p;
+    }
+
+    struct Parameter {
+        std::string name = "unnammed";
+        bool fixed = false;
+        bool bounded = false;
+        double lower = - std::numeric_limits<double>::infinity();
+        double upper = std::numeric_limits<double>::infinity();
+    };
+    //std::vector<Parameter> param_settings{};
 };
 
 
@@ -156,6 +176,11 @@ struct Gaussian1D: Model<3, 1> // 3 params, 1 dimen
     // convinient methods
     ValueType operator() (const InputType& p, const InputDataType& x) const;
     ValueType operator() (const InputDataType& x) const;
+    std::vector<Parameter> param_settings{
+        {"amplitude"},
+        {"mean"},
+        {"stddev"},
+    };
 };
 
 struct Gaussian2D: Model<6, 2>  // 6 params, 2 dimen
@@ -177,6 +202,19 @@ struct Gaussian2D: Model<6, 2>  // 6 params, 2 dimen
     DataType operator() (
             const InputDataBasisType& x,
             const InputDataBasisType& y) const;
+
+    InputType transform(const InputType& p) const;
+    InputType inverseTransform(const InputType& p) const;
+
+    const double PI = std::atan(1.0) * 4;
+    std::vector<Parameter> param_settings{
+        {"amplitude"},
+        {"xmean"},
+        {"ymean"},
+        {"xstddev"},
+        {"ystddev"},
+        {"theta", false, true, 0., PI / 2.},
+    };
 };
 
 struct SymmetricGaussian2D: Model<4, 2>  // 4 params, 2 dimen
@@ -236,9 +274,10 @@ struct LSQFitter: Fitter<Model>
 
     using _Base::_Base;  // the base constructors
 
-    int operator() (const typename LSQFitter::InputType& p, typename LSQFitter::ValueType& fvec, [[maybe_unused]] JacobianType* _j=0) const
+    int operator() (const typename LSQFitter::InputType& tp, typename LSQFitter::ValueType& fvec, [[maybe_unused]] JacobianType* _j=0) const
     {
-        fvec = ((this->ydata->array() - this->model()->eval(p, *this->xdata).array()) / this->sigma->array()).eval();
+        // tp is transformed for constraint
+        fvec = ((this->ydata->array() - this->model()->eval(this->model()->inverseTransform(tp), *this->xdata).array()) / this->sigma->array()).eval();
         SPDLOG_LOGGER_TRACE(this->logger, "fit with xdata{}", logging::pprint(this->xdata));
         SPDLOG_LOGGER_TRACE(this->logger, "         ydata{}", logging::pprint(this->ydata));
         SPDLOG_LOGGER_TRACE(this->logger, "         sigma{}", logging::pprint(this->sigma));
@@ -262,13 +301,13 @@ Model curvefit_eigen3(
                     const typename Model::DataType& sigma      // uncertainty
                     )
 {
-    auto logger = spdlog::get("curvefit");
-    if (!logger) logger = spdlog::stdout_color_mt("curvefit");
+    auto logger = spdlog::get("curvefit_eigen3");
+    if (!logger) logger = spdlog::stdout_color_mt("curvefit_eigen3");
     logger->set_level(spdlog::level::debug);
     logger->info("fit model {} on data{}", model, logging::pprint(&xdata));
 
     using Fitter = LSQFitter<Model>;
-    Fitter fitter(&model, xdata.size());
+    Fitter fitter(&model, ydata.size());
     Map<const typename Model::InputDataType> _x(xdata.data(), xdata.rows(), xdata.cols());
     Map<const typename Fitter::ValueType> _y(ydata.data(), ydata.size());
     Map<const typename Fitter::ValueType> _s(sigma.data(), sigma.size());
@@ -281,13 +320,136 @@ Model curvefit_eigen3(
 
     LevenbergMarquardt<LevMarLSQ, typename Model::Scalar> lm(lmlsq);
 
-    VectorXd pp(p);
+    VectorXd pp, tp;
     logger->info("initial params{}", logging::pprint(&p));
 
-    int info = lm.minimize(pp);
+    tp = model.transform(p);  // use the transformed params to minimize
+    int info = lm.minimize(tp);
+    pp = model.inverseTransform(tp);  // get the minimized
+
     logger->info("fitted params{}", logging::pprint(&pp));
     logger->info("info={}, nfev={}, njev={}", info, lm.nfev, lm.njev);
     logger->info("fvec.squaredNorm={}", lm.fvec.squaredNorm());
+    return Model(pp);;
+}
+
+// ceres-solver
+
+using ceres::AutoDiffCostFunction;
+using ceres::CostFunction;
+using ceres::CauchyLoss;
+using ceres::Problem;
+using ceres::Solve;
+using ceres::Solver;
+
+// CeresAutoDiff Fitter provides concreate method for least-square minimization using ceres
+template <typename Model>
+struct CeresAutoDiffFitter: Fitter<Model>
+{
+    using _Base = Fitter<Model>;
+    using _Base::_Base;  // the base constructors
+
+    template <typename T>
+    /*
+    bool operator()(const T* const params, T* residual) const
+    {
+        Map<const typename Model::InputType> p(params, this->inputs());
+        Map<typename Model::ValueType> r(residual, this->values());
+        r = ((this->ydata->array() - this->model()->eval(p, *this->xdata).array()) / this->sigma->array()).eval();
+        SPDLOG_LOGGER_TRACE(this->logger, "fit with xdata{}", logging::pprint(this->xdata));
+        SPDLOG_LOGGER_TRACE(this->logger, "         ydata{}", logging::pprint(this->ydata));
+        SPDLOG_LOGGER_TRACE(this->logger, "         sigma{}", logging::pprint(this->sigma));
+        SPDLOG_LOGGER_TRACE(this->logger, "residual{}", logging::pprint(&r));
+        return true;
+    }
+    */
+    bool operator()(const T* const p, T* r) const
+    {
+        auto cost2 = cos(p[5]) * cos(p[5]);
+        auto sint2 = sin(p[5]) * sin(p[5]);
+        auto sin2t = sin(2. * p[5]);
+        auto xstd2 = p[3] * p[3];
+        auto ystd2 = p[4] * p[4];
+        auto a = - 0.5 * ((cost2 / xstd2) + (sint2 / ystd2));
+        auto b = - 0.5 * ((sin2t / xstd2) - (sin2t / ystd2));
+        auto c = - 0.5 * ((sint2 / xstd2) + (cost2 / ystd2));
+        for (int i=0; i < this->values(); ++i)
+            r[i] =  (
+                        this->ydata->coeffRef(i) -
+                        p[0] * exp(
+                            pow(this->xdata->coeffRef(i, 0) - p[1], 2) * a +
+                            (this->xdata->coeffRef(i, 0) - p[1]) * (this->xdata->coeffRef(i, 1) - p[2]) * b +
+                            pow(this->xdata->coeffRef(i, 1) - p[2], 2) * c
+                            )
+                    ) / this->sigma->coeffRef(i);
+        return true;
+    }
+
+    //int df(const InputType &x, JacobianType& fjac) { }
+    // should be defined in derived classes if fitting using LevMar algorithm
+    // TODO: figure out a place to store fit info
+    // int info = 0;
+    // int result = 0;
+    std::shared_ptr<Problem> createProblem(double* params)
+    {
+        std::shared_ptr<Problem> problem = std::make_shared<Problem>();
+        problem->AddParameterBlock(params, this->model()->params.size());
+        for (int i = 0; i < this->model()->params.size(); ++i)
+        {
+            typename Model::Parameter p = this->model()->param_settings.at(i);
+            if (p.fixed) problem->SetParameterBlockConstant(params);
+            if (p.bounded)
+            {
+                problem->SetParameterLowerBound(params, i, p.lower);
+                problem->SetParameterUpperBound(params, i, p.upper);
+            }
+        }
+        return problem;
+    }
+};
+
+template <typename Model>
+Model curvefit_ceres(
+                    const Model& model,  // y = f(x)
+                    const typename Model::InputType& p,         // initial guess of model parameters
+                    const typename Model::InputDataType& xdata,     // x data values, independant variable
+                    const typename Model::DataType& ydata,     // y data values, measurments
+                    const typename Model::DataType& sigma      // uncertainty
+                    )
+{
+    auto logger = spdlog::get("curvefit_ceres");
+    if (!logger) logger = spdlog::stdout_color_mt("curvefit_ceres");
+    logger->set_level(spdlog::level::debug);
+    logger->info("fit model {} on data{}", model, logging::pprint(&xdata));
+
+    using Fitter = CeresAutoDiffFitter<Model>;
+    Fitter* fitter = new Fitter(&model, ydata.size());
+    Map<const typename Model::InputDataType> _x(xdata.data(), xdata.rows(), xdata.cols());
+    Map<const typename Fitter::ValueType> _y(ydata.data(), ydata.size());
+    Map<const typename Fitter::ValueType> _s(sigma.data(), sigma.size());
+    fitter->xdata = &_x;
+    fitter->ydata = &_y;
+    fitter->sigma = &_s;
+
+    CostFunction* cost_function =
+        new AutoDiffCostFunction<Fitter, Fitter::ValuesAtCompileTime, Fitter::InputsAtCompileTime>(fitter, fitter->values());
+
+    // do the fit
+    logger->info("initial params{}", logging::pprint(&p));
+    VectorXd pp(p);
+    auto problem = fitter->createProblem(pp.data());
+    problem->AddResidualBlock(cost_function,
+                              new CauchyLoss(0.5),
+                              pp.data());
+
+    Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.minimizer_progress_to_stdout = true;
+    Solver::Summary summary;
+    Solve(options, problem.get(), &summary);
+
+    logger->info("{}", summary.BriefReport());
+    logger->info("fitted params{}", logging::pprint(&pp));
     return Model(pp);;
 }
 

@@ -208,11 +208,9 @@ protected:
 
 using namespace testing;
 
-/*
 MATCHER_P(NearWithPrecision, precision, "") {
     return abs(get<0>(arg) - get<1>(arg)) < precision * 0.5 * abs(get<0>(arg) + get<1>(arg));
 }
-*/
 
 TEST_F(CurveFitTest, curvefit_eigen3_gaussian1d_simple) {
 
@@ -232,11 +230,10 @@ TEST_F(CurveFitTest, curvefit_eigen3_gaussian1d_simple) {
     // test
     std::vector<double> p(_p.data(), _p.data() + _p.size());
     std::vector<double> expected_p = {0.501708129, -6.33013581e-11, 0.73154623};
-    EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
-    // EXPECT_THAT(pp, Pointwise(NearWithPrecision(1e-5), expected_pp));
+    // EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
+    EXPECT_THAT(p, Pointwise(NearWithPrecision(1e-5), expected_p));
 }
 
-/*
 TEST_F(CurveFitTest, curvefit_eigen3_gaussian1d_roundtrip) {
 
 
@@ -244,19 +241,20 @@ TEST_F(CurveFitTest, curvefit_eigen3_gaussian1d_roundtrip) {
     VectorXd init_p(3);
     init_p << 5., 4., 3.;
 
+    double nsr = 0.001;
     xdata.setLinSpaced(100, 0., 10.);
     auto g = generate_ModelData<Gaussian1D>(init_p, xdata, ydata);
-    add_GaussianNoise(init_p[0] * 0.001, ydata, sigma);
+    add_GaussianNoise(init_p[0] * nsr, ydata, sigma);
 
     // run the fit
-    auto g_fit = curvefit_eigen3(g, g.params.array() + 0.5, xdata, ydata, sigma);
+    auto g_fit = curvefit_eigen3(g, g.params.reverse(), xdata, ydata, sigma);
     auto _p = g_fit.params;
 
     // test
     std::vector<double> p(_p.data(), _p.data() + _p.size());
     std::vector<double> expected_p(init_p.data(), init_p.data() + init_p.size());
-    EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
-    // EXPECT_THAT(pp, Pointwise(NearWithPrecision(1e-5), expected_pp));
+    // EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
+    EXPECT_THAT(p, Pointwise(NearWithPrecision(nsr), expected_p));
 }
 
 TEST_F(CurveFitTest, curvefit_eigen3_gaussian2d_roundtrip) {
@@ -270,20 +268,22 @@ TEST_F(CurveFitTest, curvefit_eigen3_gaussian2d_roundtrip) {
     xdata.setLinSpaced(80, 0., 8.);
     ydata.setLinSpaced(60, 0., 6.);
     auto g = generate_ModelData<Gaussian2D>(init_p, xdata, ydata, zdata);
-    add_GaussianNoise(init_p[0] * 0.001, zdata, sigma);
+
+    double nsr = 0.001;
+    add_GaussianNoise(init_p[0] * nsr, zdata, sigma);
     // plot2d(xdata, ydata, zdata);
 
     // run the fit
     auto g_fit = curvefit_eigen3(
-                g, g.params.array() + 0.000,
+                g, g.params.reverse(),
                 g.meshgrid(xdata, ydata), zdata, sigma);
     auto _p = g_fit.params;
 
     // test
     std::vector<double> p(_p.data(), _p.data() + _p.size());
     std::vector<double> expected_p(init_p.data(), init_p.data() + init_p.size());
-    EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
-    // EXPECT_THAT(pp, Pointwise(NearWithPrecision(1e-5), expected_pp));
+    // EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
+    EXPECT_THAT(p, Pointwise(NearWithPrecision(nsr), expected_p));
 }
 
 TEST_F(CurveFitTest, curvefit_eigen3_symmetricgaussian2d_roundtrip) {
@@ -297,21 +297,49 @@ TEST_F(CurveFitTest, curvefit_eigen3_symmetricgaussian2d_roundtrip) {
     xdata.setLinSpaced(80, 0., 8.);
     ydata.setLinSpaced(60, 0., 6.);
     auto g = generate_ModelData<SymmetricGaussian2D>(init_p, xdata, ydata, zdata);
-    add_GaussianNoise(init_p[0] * 0.001, zdata, sigma);
+    double nsr = 0.001;
+    add_GaussianNoise(init_p[0] * nsr, zdata, sigma);
     // plot2d(xdata, ydata, zdata);
 
     // run the fit
     auto g_fit = curvefit_eigen3(
-                g, g.params.array() + 0.5,
+                g, g.params.reverse(),
                 g.meshgrid(xdata, ydata), zdata, sigma);
     auto _p = g_fit.params;
 
     // test
     std::vector<double> p(_p.data(), _p.data() + _p.size());
     std::vector<double> expected_p(init_p.data(), init_p.data() + init_p.size());
-    EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
-    // EXPECT_THAT(pp, Pointwise(NearWithPrecision(1e-5), expected_pp));
+    // EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
+    EXPECT_THAT(p, Pointwise(NearWithPrecision(nsr), expected_p));
 }
-*/
+
+TEST_F(CurveFitTest, curvefit_ceres_gaussian2d_roundtrip) {
+
+
+    VectorXd xdata, ydata;
+    MatrixXd zdata, sigma;
+    VectorXd init_p(6);
+    init_p << 5., 4., 3., 2., 1., PI / 4;
+
+    xdata.setLinSpaced(80, 0., 8.);
+    ydata.setLinSpaced(60, 0., 6.);
+    auto g = generate_ModelData<Gaussian2D>(init_p, xdata, ydata, zdata);
+    double nsr = 0.001;
+    add_GaussianNoise(init_p[0] * nsr, zdata, sigma);
+    // plot2d(xdata, ydata, zdata);
+
+    // run the fit
+    auto g_fit = curvefit_ceres(
+                g, g.params.reverse(),
+                g.meshgrid(xdata, ydata), zdata, sigma);
+    auto _p = g_fit.params;
+
+    // test
+    std::vector<double> p(_p.data(), _p.data() + _p.size());
+    std::vector<double> expected_p(init_p.data(), init_p.data() + init_p.size());
+    // EXPECT_THAT(p, Pointwise(DoubleNear(1e-5), expected_p));
+    EXPECT_THAT(p, Pointwise(NearWithPrecision(nsr), expected_p));
+}
 
 }  // namespace
