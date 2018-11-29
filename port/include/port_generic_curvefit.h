@@ -21,11 +21,13 @@ struct DenseFunctor
     };
 
     using Scalar = _Scalar;
-    using InputType = Matrix<Scalar,InputsAtCompileTime,1>;
-    using ValueType = Matrix<Scalar,ValuesAtCompileTime,1>;
+    using InputType = Matrix<Scalar,InputsAtCompileTime, 1>;
+    using ValueType = Matrix<Scalar,ValuesAtCompileTime, 1>;
 
+    constexpr static std::string_view name = "functor";
     DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {
-        setupLogger("functor");
+        setupLogger(this->name);
+        SPDLOG_LOGGER_TRACE(logger, "create {}", *this);
     }
     // default
     DenseFunctor(): DenseFunctor(InputsAtCompileTime, ValuesAtCompileTime) {}
@@ -42,6 +44,12 @@ struct DenseFunctor
         return os << f.logger->name();
     }
     */
+    template<typename OStream, typename _Functor>
+    friend OStream &operator<<(OStream &os, const _Functor& f)
+    {
+        return os << f.name << "<" << static_cast<int>(_Functor::InputsAtCompileTime) << ", " << static_cast<int>(_Functor::ValuesAtCompileTime) << ">(" << f.inputs() << ", " << f.values() << ")";
+    }
+
 protected:
     int m_inputs = InputsAtCompileTime;
     int m_values = ValuesAtCompileTime;
@@ -52,7 +60,6 @@ protected:
                     fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(this)),
                     logging::console);
         logger->set_level(spdlog::level::trace);
-        logger->info("InputsAtCompileTime={} ValuesAtCompileTime={} inputs={} values={}", InputsAtCompileTime, ValuesAtCompileTime, inputs(), values());
     }
     std::shared_ptr<spdlog::logger> logger;
 };
@@ -138,11 +145,13 @@ struct Model: DenseFunctor<double, NP, Dynamic>
         return xy;
     }
 
+    /*
     template<typename OStream, typename _Model>
     friend OStream &operator<<(OStream &os, const _Model& m)
     {
         return os << m.name << "(NP=" << static_cast<int>(_Model::InputsAtCompileTime) << ",ND=" << static_cast<int>(_Model::DimensionsAtCompileTime) << ")";
     }
+    */
 
     typename Model::InputType transform(const typename Model::InputType& p) const
     {
