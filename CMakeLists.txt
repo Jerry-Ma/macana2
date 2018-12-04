@@ -43,7 +43,10 @@ configure_file(
 )
 message("Update gitversion.h")
 
-# dependencies
+# handle dependencies pulled during configure-time
+include(FetchContent)
+
+# dependencies installed in system
 find_package(OpenMP)
 find_package(GSL REQUIRED)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
@@ -53,7 +56,8 @@ find_package(NetCDF REQUIRED COMPONENTS CXX)
 find_package(CCFits REQUIRED)  # this one also find cfitsio
 find_package(CXSparse REQUIRED)
 
-include(PrintProperties)  # helper to print target attrs
+# helper to print target attrs
+include(PrintProperties)
 print_target_properties(OpenMP::OpenMP_CXX)
 print_target_properties(GSL::gsl)
 print_target_properties(GSL::gslcblas)
@@ -172,9 +176,8 @@ add_custom_command(TARGET beammap
 )
 
 
-# setup testing framework
+# setup testing/benchmarking framework
 if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
-    include(FetchContent)
     FetchContent_Declare(
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
@@ -188,11 +191,23 @@ if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
     enable_testing()
     # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
     add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-    find_package(GTest)
+    # find_package(GTest REQUIRED)
     include(GoogleTest)
+
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.4.1
+    )
+    FetchContent_GetProperties(benchmark)
+    if(NOT benchmark_POPULATED)
+        FetchContent_Populate(benchmark)
+        add_subdirectory(${benchmark_SOURCE_DIR} ${benchmark_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
 endif()
 
 add_subdirectory(port)
+
 if (MACANA2_BUILD_TESTING)
     add_subdirectory(test)
 endif()
