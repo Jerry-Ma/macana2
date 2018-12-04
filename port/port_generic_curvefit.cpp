@@ -1,4 +1,4 @@
-#include "port_generic_curvefit.h"
+#include <port_generic_curvefit.h>
 #include <iostream>
 
 namespace generic {
@@ -85,7 +85,7 @@ SymmetricGaussian2D::SymmetricGaussian2D(double amplitude, double xmean, double 
 
 SymmetricGaussian2D::ValueType SymmetricGaussian2D::eval(const SymmetricGaussian2D::InputType& p, const SymmetricGaussian2D::InputDataType& xy) const
 {
-    SPDLOG_TRACE("eval {} with params{} on data{}", *this, logging::pprint(&p), logging::pprint(&xy));
+    SPDLOG_LOGGER_TRACE(logger, "eval {} with params{} on data{}", *this, logging::pprint(&p), logging::pprint(&xy));
     double cost2 = cos(0) * cos(0);
     double sint2 = sin(0) * sin(0);
     double sin2t = sin(2. * 0);

@@ -26,8 +26,7 @@ struct DenseFunctor
 
     constexpr static std::string_view name = "functor";
     DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {
-        setupLogger(this->name);
-        SPDLOG_LOGGER_TRACE(logger, "create {}", *this);
+        logger = logging::createLogger(this->name, this);
     }
     // default
     DenseFunctor(): DenseFunctor(InputsAtCompileTime, ValuesAtCompileTime) {}
@@ -54,13 +53,6 @@ protected:
     int m_inputs = InputsAtCompileTime;
     int m_values = ValuesAtCompileTime;
 
-    void setupLogger(const std::string_view& name)
-    {
-        logger = std::make_shared<spdlog::logger>(
-                    fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(this)),
-                    logging::console);
-        logger->set_level(spdlog::level::trace);
-    }
     std::shared_ptr<spdlog::logger> logger;
 };
 
@@ -82,7 +74,7 @@ struct Model: DenseFunctor<double, NP, Dynamic>
     constexpr static std::string_view name = "model";
     // via known size of params
     Model(int inputs): _Base(inputs, Dynamic), params(inputs) {
-        Model::setupLogger(Model::name);
+        this->logger = logging::createLogger(Model::name, this);
     }
     // via copy of params
     Model(const typename _Base::InputType& params): Model(static_cast<int>(params.size())) {this->params=params;}
@@ -245,6 +237,12 @@ struct SymmetricGaussian2D: Model<4, 2>  // 4 params, 2 dimen
     DataType operator() (
             const InputDataBasisType& x,
             const InputDataBasisType& y) const;
+    std::vector<Parameter> param_settings{
+        {"amplitude"},
+        {"xmean"},
+        {"ymean"},
+        {"stddev"},
+    };
 };
 
 // Fitter is a functor that matches the data types of the Model.
@@ -256,7 +254,7 @@ struct Fitter: _Model::_Base
     using Model = _Model;
 
     Fitter (const Model* model, int values): _Base(model->inputs(), values), m_model(model) {
-        Fitter::setupLogger("fitter");
+        this->logger = logging::createLogger("fitter", this);
     }
     Fitter (const Model* model): Fitter(model, Fitter::InputsAtCompileTime) {}
 
@@ -283,10 +281,10 @@ struct LSQFitter: Fitter<Model>
 
     using _Base::_Base;  // the base constructors
 
-    int operator() (const typename LSQFitter::InputType& tp, typename LSQFitter::ValueType& fvec, [[maybe_unused]] JacobianType* _j=0) const
+    int operator() (const typename LSQFitter::InputType& tp, typename LSQFitter::ValueType& fvec) const
     {
         // tp is transformed for constraint
-        fvec = ((this->ydata->array() - this->model()->eval(this->model()->inverseTransform(tp), *this->xdata).array()) / this->sigma->array()).eval();
+        fvec = (this->ydata->array() - this->model()->eval(this->model()->inverseTransform(tp), *this->xdata).array()) / this->sigma->array();
         SPDLOG_LOGGER_TRACE(this->logger, "fit with xdata{}", logging::pprint(this->xdata));
         SPDLOG_LOGGER_TRACE(this->logger, "         ydata{}", logging::pprint(this->ydata));
         SPDLOG_LOGGER_TRACE(this->logger, "         sigma{}", logging::pprint(this->sigma));
@@ -310,10 +308,8 @@ Model curvefit_eigen3(
                     const typename Model::DataType& sigma      // uncertainty
                     )
 {
-    auto logger = spdlog::get("curvefit_eigen3");
-    if (!logger) logger = spdlog::stdout_color_mt("curvefit_eigen3");
-    logger->set_level(spdlog::level::debug);
-    logger->info("fit model {} on data{}", model, logging::pprint(&xdata));
+    auto logger = logging::createLogger("curvefit_eigen3", &model);
+    SPDLOG_LOGGER_DEBUG(logger, "fit model {} on data{}", model, logging::pprint(&xdata));
 
     using Fitter = LSQFitter<Model>;
     Fitter fitter(&model, ydata.size());
@@ -330,15 +326,15 @@ Model curvefit_eigen3(
     LevenbergMarquardt<LevMarLSQ, typename Model::Scalar> lm(lmlsq);
 
     VectorXd pp, tp;
-    logger->info("initial params{}", logging::pprint(&p));
+    SPDLOG_LOGGER_DEBUG(logger, "initial params{}", logging::pprint(&p));
 
     tp = model.transform(p);  // use the transformed params to minimize
     int info = lm.minimize(tp);
     pp = model.inverseTransform(tp);  // get the minimized
 
-    logger->info("fitted params{}", logging::pprint(&pp));
-    logger->info("info={}, nfev={}, njev={}", info, lm.nfev, lm.njev);
-    logger->info("fvec.squaredNorm={}", lm.fvec.squaredNorm());
+    SPDLOG_LOGGER_DEBUG(logger, "fitted params{}", logging::pprint(&pp));
+    SPDLOG_LOGGER_DEBUG(logger, "info={}, nfev={}, njev={}", info, lm.nfev, lm.njev);
+    SPDLOG_LOGGER_DEBUG(logger, "fvec.squaredNorm={}", lm.fvec.squaredNorm());
     return Model(pp);;
 }
 
@@ -426,10 +422,12 @@ Model curvefit_ceres(
                     const typename Model::DataType& sigma      // uncertainty
                     )
 {
+    /*
     auto logger = spdlog::get("curvefit_ceres");
     if (!logger) logger = spdlog::stdout_color_mt("curvefit_ceres");
     logger->set_level(spdlog::level::debug);
     logger->info("fit model {} on data{}", model, logging::pprint(&xdata));
+    */
 
     using Fitter = CeresAutoDiffFitter<Model>;
     Fitter* fitter = new Fitter(&model, ydata.size());
@@ -444,7 +442,9 @@ Model curvefit_ceres(
         new AutoDiffCostFunction<Fitter, Fitter::ValuesAtCompileTime, Fitter::InputsAtCompileTime>(fitter, fitter->values());
 
     // do the fit
+    /*
     logger->info("initial params{}", logging::pprint(&p));
+    */
     VectorXd pp(p);
     auto problem = fitter->createProblem(pp.data());
     problem->AddResidualBlock(cost_function,
@@ -453,13 +453,16 @@ Model curvefit_ceres(
 
     Solver::Options options;
     options.linear_solver_type = ceres::DENSE_QR;
-    options.minimizer_progress_to_stdout = true;
+    // options.minimizer_progress_to_stdout = true;
+    // options.logging_type = ceres::SILENT;
     Solver::Summary summary;
     Solve(options, problem.get(), &summary);
 
+    /*
     logger->info("{}", summary.BriefReport());
     logger->info("fitted params{}", logging::pprint(&pp));
-    return Model(pp);;
+    */
+    return Model(pp);
 }
 
 }  // namespace generic

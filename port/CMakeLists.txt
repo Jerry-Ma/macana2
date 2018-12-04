@@ -10,12 +10,23 @@ if(NOT spdlog_POPULATED)
     FetchContent_Populate(spdlog)
     add_subdirectory(${spdlog_SOURCE_DIR} ${spdlog_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
-find_package(spdlog)
 print_target_properties(spdlog::spdlog)
 
-find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+FetchContent_Declare(
+    fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG        5.2.1
+)
+FetchContent_GetProperties(fmt)
+if(NOT fmt_POPULATED)
+    FetchContent_Populate(fmt)
+    add_subdirectory(${fmt_SOURCE_DIR} ${fmt_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
+print_target_properties(fmt::fmt)
+find_package(OpenCV)
+
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Ceres REQUIRED COMPONENTS C++11)
-find_package( OpenCV REQUIRED )
 
 add_executable(port_test EXCLUDE_FROM_ALL)
 set_target_properties(port_test
@@ -25,7 +36,10 @@ set_target_properties(port_test
 target_sources(port_test
     PRIVATE
         port_generic_curvefit.cpp
+        port_timestream_sensitivity.cpp
         test/test_port_generic_curvefit.cpp
+        test/test_port_timestream_sensitivity.cpp
+        test/test_main.cpp
     )
 target_include_directories(port_test
     PRIVATE
@@ -35,7 +49,8 @@ target_include_directories(port_test
 target_link_libraries(port_test
     PRIVATE
         spdlog::spdlog
-        gtest gtest_main gmock
+        fmt::fmt
+        gtest gmock benchmark
         ceres
         Eigen3::Eigen
         ${OpenCV_LIBS}

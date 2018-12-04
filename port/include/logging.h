@@ -4,13 +4,29 @@
 #include <Eigen/Core>
 
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define SPDLOG_DISABLE_DEFAULT_LOGGER
+#define SPDLOG_FMT_EXTERNAL
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/fmt/ostr.h>
+// remove the extra filename:lineno in trace
 #undef SPDLOG_LOGGER_TRACE
 #define SPDLOG_LOGGER_TRACE(logger, ...) logger->log(spdlog::source_loc{}, spdlog::level::trace, __VA_ARGS__)
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 
 namespace logging {
+
+// shared sink
+inline const static auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+
+inline std::shared_ptr<spdlog::logger> createLogger(std::string_view name, const void* const ptr)
+{
+    auto logger = std::make_shared<spdlog::logger>(
+                fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(ptr)),
+                logging::console);
+    logger->set_level(spdlog::level::info);
+    return logger;
+}
 
 using namespace Eigen;
 
@@ -140,7 +156,6 @@ private:
     }
 };
 
-inline const static auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
 } // namespace
 #endif /* !LOGGING_H */

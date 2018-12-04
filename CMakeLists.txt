@@ -176,7 +176,7 @@ add_custom_command(TARGET beammap
 )
 
 
-# setup testing framework
+# setup testing/benchmarking framework
 if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
     FetchContent_Declare(
         googletest
@@ -193,9 +193,21 @@ if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
     add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
     # find_package(GTest REQUIRED)
     include(GoogleTest)
+
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.4.1
+    )
+    FetchContent_GetProperties(benchmark)
+    if(NOT benchmark_POPULATED)
+        FetchContent_Populate(benchmark)
+        add_subdirectory(${benchmark_SOURCE_DIR} ${benchmark_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
 endif()
 
 add_subdirectory(port)
+
 if (MACANA2_BUILD_TESTING)
     add_subdirectory(test)
 endif()

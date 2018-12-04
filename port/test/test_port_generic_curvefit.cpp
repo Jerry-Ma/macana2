@@ -10,10 +10,10 @@
 #include <opencv2/core/eigen.hpp>
 
 #define CVUI_IMPLEMENTATION
-#include "opencv/cvui.h"
-#include "opencv/enhancedwindow.h"
+#include <opencv/cvui.h>
+#include <opencv/enhancedwindow.h>
 
-#include "port_generic_curvefit.h"
+#include <port_generic_curvefit.h>
 
 namespace {
 
@@ -25,7 +25,7 @@ class CurveFitTest : public ::testing::Test
 {
 protected:
     CurveFitTest(): e2(sd()) {
-        setupLogger("test.curvefit");
+        logger = logging::createLogger("test.curvefit", this);
     }
     ~CurveFitTest() override {}
     void SetUp() override {}
@@ -35,15 +35,7 @@ protected:
     std::mt19937 e2;  // rand generator
     // std::uniform_real_distribution<double> urand{-1., 1.};
     const double PI = std::atan(1.0) * 4;
-
-    void setupLogger(const std::string_view& name)
-    {
-        logger = std::make_shared<spdlog::logger>(
-                    fmt::format("{}@{:x}", name, reinterpret_cast<std::uintptr_t>(this)),
-                    logging::console);
-        logger->set_level(spdlog::level::debug);
-    }
-    std::shared_ptr<spdlog::logger> logger;
+    std::shared_ptr<spdlog::logger> logger = nullptr;
 
     template <typename Derived>
     void add_GaussianNoise(double stddev, DenseBase<Derived>& data, DenseBase<Derived>& sigma)
@@ -330,10 +322,14 @@ TEST_F(CurveFitTest, curvefit_ceres_gaussian2d_roundtrip) {
     // plot2d(xdata, ydata, zdata);
 
     // run the fit
-    auto g_fit = curvefit_ceres(
-                g, g.params.reverse(),
-                g.meshgrid(xdata, ydata), zdata, sigma);
-    auto _p = g_fit.params;
+    auto _p = g.params;
+    auto g_fit(g);
+    auto xy = g.meshgrid(xdata, ydata);
+    // for (int i = 0; i < 7000; ++i)
+    curvefit_ceres(
+                    g, _p,
+                    xy, zdata, sigma);
+    _p = g_fit.params;
 
     // test
     std::vector<double> p(_p.data(), _p.data() + _p.size());
