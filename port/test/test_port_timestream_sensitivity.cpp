@@ -12,7 +12,7 @@ using namespace Eigen;
 TEST(TimeStreamSensitivityTest, psd) {
     VectorXd scan, freqs, psd;
     scan.setOnes(101);
-    timestream::psd(scan, freqs, psd, 64., true);
+    timestream::internal::psd(scan, psd, &freqs, 64., true);
 }
 
 TEST(TimeStreamSensitivityTest, sensitivity) {
@@ -23,7 +23,9 @@ TEST(TimeStreamSensitivityTest, sensitivity) {
     MatrixXI scanindex(2, 2);
     scanindex <<  0, 55,
                  40, 100;
-    timestream::sensitivity(scans, scanindex, 64., 0.);
+
+    VectorXd sensitivities, noisefluxes;
+    timestream::sensitivity(scans, scanindex, sensitivities, noisefluxes, 64., 0.);
 }
 
 } // namespace
