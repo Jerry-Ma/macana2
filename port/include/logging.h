@@ -42,7 +42,7 @@ struct pprint
         os << "(" << m.rows() << "," << m.cols() << ")";
 
         auto f = pp.matrix_formatter();
-        pp.print_matrix(os, m.eval(), f, 5, 5, 10);
+        print_matrix(os, m, f, 5, 5, 10);
         return os;
     }
 
@@ -58,7 +58,7 @@ private:
             return IOFormat(StreamPrecision, 0, ", ", "\n", "[", "]", "[\n", "]\n");
     }
     template <typename OStream, typename Derived>
-    OStream & print_matrix(OStream & s, const Derived& _m, const IOFormat& fmt, int max_rows, int max_cols, int max_size=-1) const
+    static OStream & print_matrix(OStream & s, const DenseBase<Derived>& _m, const IOFormat& fmt, int max_rows, int max_cols, int max_size=-1)
     {
       if(_m.size() == 0)
       {
@@ -66,7 +66,7 @@ private:
         return s;
       }
 
-      typename Derived::Nested m = _m;
+      typename Derived::Nested m(_m.derived());
 
       if (max_size < 0) max_size = max_rows * max_cols;
       if (m.cols() == 1 || m.rows() == 1)

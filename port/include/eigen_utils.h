@@ -8,9 +8,14 @@ namespace Eigen {
 using VectorXI = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, 1>;
 using MatrixXI = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, Eigen::Dynamic>;
 
-}
+} // namespace Eigen
 
 namespace utils {
+
+template <typename T=Eigen::ArrayXd>
+T* ei_nullptr() {
+    return static_cast<T*>(nullptr);
+}
 
 template <typename Derived>
 typename Derived::Scalar median(const Eigen::MatrixBase<Derived> &v_) {
@@ -37,47 +42,42 @@ typename Derived::Scalar median(const Eigen::MatrixBase<Derived> &v_) {
 }
 
 template <typename _Scalar>
-class Interval: public Eigen::Array<_Scalar, 2, 1>
-{
-public:
+class Interval : public Eigen::Array<_Scalar, 2, 1> {
+  public:
     using Scalar = _Scalar;
     using Base = Eigen::Array<_Scalar, 2, 1>;
     inline static const Scalar Inf = std::numeric_limits<Scalar>::infinity();
 
-    Interval(): Base() {
+    Interval() : Base() {
         this->operator[](0) = -Inf;
         this->operator[](1) = Inf;
     }
-    Interval(std::initializer_list<Scalar> interval): Interval() {
-        if (interval.size() == 0) return;
-        if (interval.size() == 2)
-        {
-           auto it = interval.begin();
-           this->operator[](0) = *it;
-           ++it;
-           this->operator[](1) = *it;
-           return;
+    Interval(std::initializer_list<Scalar> interval) : Interval() {
+        if (interval.size() == 0)
+            return;
+        if (interval.size() == 2) {
+            auto it = interval.begin();
+            this->operator[](0) = *it;
+            ++it;
+            this->operator[](1) = *it;
+            return;
         }
-        throw std::invalid_argument("empty initalize_list or {left, right} is required");
+        throw std::invalid_argument(
+            "empty initalize_list or {left, right} is required");
     }
 
-    template<typename OtherDerived>
-    Interval(const Eigen::ArrayBase<OtherDerived>& other): Base(other) {}
+    template <typename OtherDerived>
+    Interval(const Eigen::ArrayBase<OtherDerived> &other) : Base(other) {}
 
-    template<typename OtherDerived>
-    Interval& operator=(const Eigen::ArrayBase<OtherDerived>& other)
-    {
+    template <typename OtherDerived>
+    Interval &operator=(const Eigen::ArrayBase<OtherDerived> &other) {
         this->Base::operator=(other);
         return *this;
     }
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Scalar& left() {
-        return this->x();
-    }
+    EIGEN_STRONG_INLINE Scalar &left() { return this->x(); }
     EIGEN_DEVICE_FUNC
-    EIGEN_STRONG_INLINE Scalar& right() {
-        return this->y();
-    }
+    EIGEN_STRONG_INLINE Scalar &right() { return this->y(); }
 };
 
 } // namespace utils

@@ -7,8 +7,7 @@ namespace timestream {
 
 namespace internal {
 
-std::tuple<Index, Index, double> stat(Index scanlength, double samplerate)
-{
+std::tuple<Index, Index, double> stat(Index scanlength, double samplerate) {
     auto logger = logging::createLogger("timestream._stat", nullptr);
     logger->set_level(spdlog::level::trace);
 
@@ -30,6 +29,6 @@ VectorXd freq(Index npts, Index nfreqs, double dfreq) {
     return dfreq * VectorXd::LinSpaced(nfreqs, 0, npts / 2);
 }
 
-}  // namespace internal
+} // namespace internal
 
 } // namespace timestream
