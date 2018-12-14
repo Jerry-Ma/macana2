@@ -1,188 +1,112 @@
-//Google test
+//Gtest
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-//Eigen
-#include <Eigen/Dense>
-#include <unsupported/Eigen/FFT>
-#include <unsupported/Eigen/CXX11/Tensor>
+#include "port_bandpass.h"
 
-//MKL
-#include <mkl_dfti.h>
-
-//Other
-#include <vector>
-#include <iostream>
-#include <stdlib.h>
-#include <fstream>
-#include <cmath>
-#include <string>
-#include <fftw3.h>
-
-#include "nr3.h"
-#include "tinyxml2.h"
-#include "Detector.h"
-#include "astron_utilities.h"
-#include "vector_utilities.h"
-
-#include <chrono>
-
-#include <port_bandpass.h>
-
-namespace {
+namespace{
 
 using namespace Eigen;
-using namespace std;
-using namespace generic;
+using namespace bandpass;
 
-class kernel_test: public ::testing::Test{
-protected:
-    //Data length
-    size_t nSamples=1000;
+class BandpassTest:public::testing::Test
+{
+   public:
+      size_t nSamples=1000;
+      size_t nTerms=32;
+      size_t nCoef=2*nTerms+1;;
+      double lower=0.0;
+      double upper=10.0;
+      double sigma=0.5;
+      double center=(upper+lower)/2.0;
+      double tmp;
+      int th=nSamples-nTerms;
+      int tt;
 
-    //Gaussian kernel parameters
-    size_t nTerms=32;
-    size_t nCoef=2*nTerms+1;;
-    double lower=0.0;
-    double upper=10.0;
-    double sigma=0.5;
-    double center=(upper+lower)/2.0;
+      double err = 1e-5;
+      
+      BandpassTest() {};
+      ~BandpassTest() override {}
+      void TearDown() override {}
+      void SetUp() override {}
 
-    //Macana bandpass params
-    double tmp;
-    int th=nSamples-nTerms;
-    int tt;
+      template <typename VectorType>
+         VectorType generate_ker(VectorType& dlt_func, int PeakLoc, int size){
+            dlt_func.setZero(nSamples);
+            dlt_func[PeakLoc] = 1.0;
+            VectorType kernel(size);
+            ArrayXf x = ArrayXf::LinSpaced(size, lower, upper);
 
-    //Eigen Vectors
-    VectorXf dlt_func{nSamples};
-    VectorXcf fft_dlt_func{nSamples};
-
-    VectorXf kernel{nSamples};
-    VectorXcf fft_kernel{nSamples};
-
-    VectorXcf fft_dlt_kernel{nSamples};
-    VectorXf convolution{nSamples};
-
-    ArrayXf x = ArrayXf::LinSpaced(nSamples, lower, upper);
-
-    //Macana Vectors
-    VecDoub hValues{nSamples};
-    VecDoub digFiltTerms{nCoef};
-    VecDoub xm{nCoef};
-    VecDoub storage{nSamples};
-
-    //Eigen Tensors
-    Tensor<float, 1, ColMajor> dlt_tensor{static_cast<Index>(nSamples)};
-    Tensor<float, 1, ColMajor> kernel_tensor{static_cast<Index>(nCoef)};
-    Tensor<float, 1, ColMajor> conv_tensor{static_cast<Index>(nSamples - nCoef + 1)};
-
-
-    Eigen::array<ptrdiff_t, 1> dims{0};
-
-    kernel_test() {};
-    ~kernel_test() override {}
-    void TearDown() override {}
-    void SetUp() override {
-
-    //Eigen Vector setup
-    /*-----------------------------------------------------------------------------------*/
-    dlt_func.setZero(nSamples);
-    convolution.setZero(nSamples);
-    dlt_func[0] = 1.0;
-
-    kernel = exp(-pow(x.array() - center,2.)/(2.*pow(sigma,2.0)));
-
-    //Macana setup
-    /*-----------------------------------------------------------------------------------*/
-    xm[0] = lower;
-
-    for (int i = 1; i<nCoef; i++){
-        xm[i] = xm[i-1] + (upper - lower)/nCoef;
-     }
-
-    for(int i = 0; i<nSamples; i++){
-        hValues[i] = 0.0;
-     }
-
-    hValues[nCoef] = 1.0;
-
-     for(int i = 0; i<nCoef; i++){
-         digFiltTerms[i] = exp(-pow(xm[i] - center,2.)/(2.*pow(sigma,2.0)));
-     }
-
-     //Eigen Tensor Setup
-     /*-----------------------------------------------------------------------------------*/
-     dlt_tensor.setConstant(0.0);
-     dlt_tensor[nCoef] = 1.0;
-     dims[0] = 0.0;
-
-     for(int i=0;i<nCoef; i++){
-         kernel_tensor[i] = exp(-pow(xm[i] - center,2.)/(2.*pow(sigma,2.0)));
-     }
-    }
-
+            kernel = exp(-pow(x.array() - center,2.)/(2.*pow(sigma,2.0)));
+            return kernel;
+         }
 };
+
+using namespace testing;
 
 MATCHER_P(NearWithPrecision, precision, "") {
     return abs(get<0>(arg) - get<1>(arg)) < precision;
 }
 
-using namespace testing;
+TEST_F(BandpassTest,EigenFFTTest){
+   VectorXf dlt_func, convolution;
+   VectorXcf fft_dlt_func, fft_kernel, fft_dlt_kernel;
 
-//Testing the Eigen FFT routine.
-TEST_F(kernel_test, eigen_fft_bandpass) {
-    double err = 1e-5;
-    double time = 0;
+   VectorXf kernel = generate_ker<VectorXf>(dlt_func, 0, nSamples);
+   EigenFFT(dlt_func, kernel, fft_dlt_func, fft_kernel, fft_dlt_kernel,convolution);
 
-    time = eigen_fft_bandpass(dlt_func, kernel, fft_dlt_func, fft_kernel, fft_dlt_kernel,
-                              convolution);
+   std::vector<double> c(convolution.data(),convolution.data() + convolution.size());
+   std::vector<double> k(kernel.data(),kernel.data() + kernel.size());
 
-    std::vector<double> conv(nSamples);
-    std::vector<double> ker(nSamples);
-
-    for(int bb=0;bb<nSamples;bb++){
-        conv[bb] = convolution[bb];
-        ker[bb] = kernel[bb];
-    }
-
-    EXPECT_THAT(conv, Pointwise(NearWithPrecision(err), ker));
+   EXPECT_THAT(c, Pointwise(NearWithPrecision(err), k));
 }
 
-//Testing the Eigen convolve routine
-TEST_F(kernel_test, eigen_convolve_bandpass) {
-    double err = 1e-5;
-    double time;
+TEST_F(BandpassTest,EigenTensorTest){
+   VectorXf dlt_func;
 
-    time = eigen_convolve_bandpass(dlt_tensor, kernel_tensor, dims, conv_tensor);
+   //Eigen Tensor
+   Tensor<float, 1, ColMajor> conv_tensor(static_cast<Index>(nSamples - nCoef + 1));
 
-    std::vector<double> conv(nCoef);
-    std::vector<double> ker(nCoef);
+   Eigen::array<ptrdiff_t, 1> dims{0};
 
-    for(int bb=0;bb<nCoef;bb++) {
-        conv[bb-0] = conv_tensor[bb];
-        ker[bb] = kernel_tensor[bb];
-    }
+   VectorXf kernel = generate_ker<VectorXf>(dlt_func, nCoef-1, nCoef);
 
-    EXPECT_THAT(conv, Pointwise(NearWithPrecision(err), ker));
+   Eigen::Tensor<float, 1> dlt_tensor = Vector_to_Tensor<VectorXf>(dlt_func, nSamples);
+   Eigen::Tensor<float, 1> kernel_tensor = Vector_to_Tensor<VectorXf>(kernel, nCoef);
+
+   EigenTensor(dlt_tensor, kernel_tensor, dims, conv_tensor);
+
+   //for(int i=0;i<nCoef;i++) cerr << conv_tensor[i] << "," << kernel_tensor[i] << "\n";
+
+   std::vector<double> c(conv_tensor.data(),conv_tensor.data() + nCoef);
+   std::vector<double> k(kernel_tensor.data(),kernel_tensor.data() + nCoef);
+
+   EXPECT_THAT(c, Pointwise(NearWithPrecision(err), k));
 }
 
-//Testing the macana convolve routine
-TEST_F(kernel_test, macana_bandpass) {
-    double err = 1e-5;
-    double time = 0;
+TEST_F(BandpassTest,MacanaTest){
+    VectorXf dlt_func, convolution;
+    VectorXcf fft_dlt_func, fft_kernel, fft_dlt_kernel;
 
-    time = macana_bandpass(hValues, digFiltTerms, storage, th, nSamples, nTerms, nCoef, tt, tmp);
+    VectorXf kernel = generate_ker<VectorXf>(dlt_func, nCoef - 1, nCoef);
 
-    std::vector<double> conv(nCoef);
-    std::vector<double> ker(nCoef);
+    VecDoub hValues = Vector_to_VecDoub<VectorXf>(dlt_func, nSamples);
+    VecDoub digFiltTerms = Vector_to_VecDoub<VectorXf>(kernel, nCoef);
 
-    for(int bb=nTerms;bb<nCoef + nTerms;bb++) {
-        conv[bb-nTerms] = hValues[bb];
-        ker[bb-nTerms] = digFiltTerms[bb-nTerms];
-        //cerr << hValues[bb] << "\n";
+    VecDoub storage(nSamples);
+
+    MacanaBandpass(hValues, digFiltTerms, storage, th, nSamples, nTerms, nCoef, tt, tmp);
+
+        std::vector<double> c(nCoef);
+        std::vector<double> k(nCoef);
+
+    for(int i=nTerms;i<nCoef + nTerms;i++) {
+            c[i-nTerms] = hValues[i];
+            k[i-nTerms] = digFiltTerms[i-nTerms];
     }
 
-    EXPECT_THAT(conv, Pointwise(NearWithPrecision(err), ker));
+    EXPECT_THAT(c, Pointwise(NearWithPrecision(err), k));
 }
+
+
 } //namespace
-
