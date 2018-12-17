@@ -20,7 +20,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# -------
 # options
+# -------
 option(BUILD_SHARED_LIBS "build shared libraries" OFF)
 option(MACANA2_BUILD_TESTING "enable testing for macana2" ON)
 option(MACANA2_BUILD_PORT_TESTING "enable testing for citlali-port" ON)
@@ -43,7 +45,13 @@ configure_file(
 )
 message("Update gitversion.h")
 
+# ------------
 # dependencies
+# ------------
+# handle dependencies pulled during configure-time
+include(FetchContent)
+
+# dependencies installed in system
 find_package(OpenMP)
 find_package(GSL REQUIRED)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
@@ -53,20 +61,57 @@ find_package(NetCDF REQUIRED COMPONENTS CXX)
 find_package(CCFits REQUIRED)  # this one also find cfitsio
 find_package(CXSparse REQUIRED)
 
-include(PrintProperties)  # helper to print target attrs
+# helper to print target attrs
+include(PrintProperties)
 print_target_properties(OpenMP::OpenMP_CXX)
 print_target_properties(GSL::gsl)
 print_target_properties(GSL::gslcblas)
 print_target_properties(fftw3::double::serial)
 
+# setup testing/benchmarking framework
+if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        release-1.8.1
+    )
+    FetchContent_GetProperties(googletest)
+    if(NOT googletest_POPULATED)
+        FetchContent_Populate(googletest)
+        add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
+    enable_testing()
+    # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
+    # find_package(GTest REQUIRED)
+    include(GoogleTest)
+
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.4.1
+    )
+    FetchContent_GetProperties(benchmark)
+    if(NOT benchmark_POPULATED)
+        FetchContent_Populate(benchmark)
+        add_subdirectory(${benchmark_SOURCE_DIR} ${benchmark_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
+endif()
+
+# -------------
+# build targets
+# -------------
 # build options
-set(common_compile_options -Wall -Wextra -DHAVE_INLINE -fexceptions -Wno-source-uses-openmp)  # -Werror
+set(common_compile_options -Weverything -DHAVE_INLINE -fexceptions)  # -Werror
 set(link_libraries
     )
 
 set(include_directories
     {CMAKE_BINARY_DIR}   # version header
 )
+
+# process port lib
+add_subdirectory(port)
 
 # target definitions
 # lib
@@ -88,6 +133,7 @@ target_link_libraries(macana2
         ${CXSPARSE_LIBRARIES}
         ${NETCDF_CXX_LIBRARIES}
         ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+        port
     )
 target_compile_options(macana2
     PUBLIC
@@ -172,27 +218,6 @@ add_custom_command(TARGET beammap
 )
 
 
-# setup testing framework
-if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
-    include(FetchContent)
-    FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG        release-1.8.1
-    )
-    FetchContent_GetProperties(googletest)
-    if(NOT googletest_POPULATED)
-        FetchContent_Populate(googletest)
-        add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
-    endif()
-    enable_testing()
-    # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
-    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-    find_package(GTest)
-    include(GoogleTest)
-endif()
-
-add_subdirectory(port)
 if (MACANA2_BUILD_TESTING)
     add_subdirectory(test)
 endif()

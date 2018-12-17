@@ -328,7 +328,7 @@ MatDoub Observation::calculateWeights(Array* a, Telescope* tel)
     int nScans = tel->scanIndex.ncols();
     int* di = a->getDetectorIndices();
     MatDoub tmpwt(nDetectors, nScans);
-    if(ap->getApproximateWeights()){
+    if(ap->getApproximateWeights() && (!ap->beammapping)){
       double sens;
       double samprate;
       for(int i=0;i<nDetectors;i++)
