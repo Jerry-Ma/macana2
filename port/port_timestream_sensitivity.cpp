@@ -29,6 +29,7 @@ VectorXd freq(Index npts, Index nfreqs, double dfreq) {
     return dfreq * VectorXd::LinSpaced(nfreqs, 0, npts / 2);
 }
 
+
 } // namespace internal
 
 } // namespace timestream

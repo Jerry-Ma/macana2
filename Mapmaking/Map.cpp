@@ -368,7 +368,7 @@ double Map::fitToGaussian(VecDoub &pp, VecInt &fixme, VecDoub &fixVals,
       az[nptscols * i + j] = rowCoordsPhys[i + minxi];
       el[nptscols * i + j] = colCoordsPhys[j + minyi];
       m[nptscols * i + j] = (image[i + minxi][j + minyi] == 0.)
-                                ? 0 / 0
+                                ? std::numeric_limits<double>::quiet_NaN()
                                 : image[i + minxi][j + minyi];
       //      sigma[nptscols*i + j] = (image[i+minxi][j+minyi] == 0.)? 1e10 :
       //      (image[i+minxi][j+minyi] * 0.01);

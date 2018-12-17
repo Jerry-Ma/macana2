@@ -134,11 +134,13 @@ int main(int nArgs, char* args[])
     double cutOff = ap->getCleanIterationCutoff();
 
     // generate original map before cleaning
+    /*
     Observation* obs = new Observation(ap);
     obs->generateMaps(array, telescope);
     string mapFile = ap->getOutBeammapNcdf();
     mapFile.replace(mapFile.end() - 5, mapFile.end(), "_noclean.nc");
     obs->writeObservationToNcdf(mapFile);
+    */
 
     //begin the iterative cleaning
     while(iteration < cap){
@@ -254,7 +256,7 @@ int main(int nArgs, char* args[])
           cerr << "writing maps to " << mapFile << endl;
 
           obs->writeBeammapsToNcdf(mapFile);
-          if (fitsMapFile)
+          if (strlen(fitsMapFile) > 0)
              obs->writeBeammapsToFits(string(fitsMapFile));
 
           cerr << "writing fit parameters to " << mapFile << endl;
@@ -270,6 +272,7 @@ int main(int nArgs, char* args[])
       delete obs;
       cerr << "observation successfully deallocated" << endl;
       iteration++;
+
     }
 
     //fcf is calculated using the beammapSourceFlux
@@ -279,15 +282,16 @@ int main(int nArgs, char* args[])
       double extinction = array->detectors[di[i]].getExtinction();
       double responsivity = array->detectors[di[i]].responsivity;
       double fecGain = array->detectors[di[i]].getFecGain();
-      double fcf = sourceBrightness * responsivity * fecGain * 1000 / (amplitude * extinction);
+      // double fcf = sourceBrightness * responsivity * fecGain * 1000 / (amplitude * extinction);
+      double fcf = sourceBrightness * 1000 / (amplitude);
       array->detectors[di[i]].setFcf(fcf);
     }
 
-    //the sensitivity calculation currently suffers from both errors and memory leaks
     for(int i=0;i<array->getNDetectors();i++){
       array->detectors[di[i]].calibrate();
       array->detectors[di[i]].calculateSensitivity(telescope);
     }
+
 
     cerr << "generating bstats file" << endl;
     
@@ -310,7 +314,7 @@ int main(int nArgs, char* args[])
         bstatsFile << -1 * fitParams[currDetectorIndex][4]/TWO_PI*360.*3600. << "         ";
         bstatsFile << -1 * fitParams[currDetectorIndex][5]/TWO_PI*360.*3600. << "      ";
         bstatsFile << -1 * array->detectors[di[currDetectorIndex]].getFcf() << "      ";
-        //bstatsFile << array->detectors[di[currDetectorIndex]].getSensitivity();
+        bstatsFile << array->detectors[di[currDetectorIndex]].getSensitivity();
         currDetectorIndex++;
       }
       bstatsFile << endl;

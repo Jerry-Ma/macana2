@@ -1,16 +1,15 @@
 #ifndef PORT_TIMESTREAM_SENSITIVITY_H
 #define PORT_TIMESTREAM_SENSITIVITY_H
 
-#include <cmath>
-#include <tuple>
-
-#include <Eigen/Core>
+#include <eigen_utils.h>
 #include <unsupported/Eigen/FFT>
 
-#include <eigen_utils.h>
+#include <tuple>
+
 #include <mlinterp.hpp>
 
 #include <logging.h>
+
 
 namespace timestream {
 
@@ -22,7 +21,7 @@ using Eigen::MatrixXI;
 using Eigen::VectorXcd;
 using Eigen::VectorXd;
 using Eigen::VectorXI;
-using utils::Interval;
+using eiu::Interval;
 
 namespace internal {
 
@@ -32,41 +31,58 @@ using FreqStat = std::tuple<Index, Index, double>;
 FreqStat stat(Index scanlength, double samplerate);
 VectorXd freq(Index npts, Index nfreqs, double dfreq);
 
+enum Window {
+    NoWindow = 0,
+    Hanning = 1
+};
+
+inline auto hann(Index npts)
+{
+    // hann window
+    // N numbers starting from 0 to (include) 2pi/N * (N-1)
+    // 0.5 - 0.5 cos([0, 2pi/N,  2pi/N * 2, ... 2pi/N * (N - 1)])
+    // NENBW = 1.5 * df therefore we devide by 1.5 here to get the
+    // equivalent scale as if no window is used
+    return (0.5 - 0.5 * ArrayXd::LinSpaced(npts, 0, 2 * M_PI / npts * (npts - 1)).cos()).matrix() / 1.5;
+}
+
 // psd of individual scan npts/2 + 1 values with frequency [0, f/2];
-template <typename DerivedA, typename DerivedB, typename DerivedC>
-FreqStat psd(const Eigen::DenseBase<DerivedA> &scan,
+template <Window win=Hanning, typename DerivedA, typename DerivedB, typename DerivedC>
+FreqStat psd(const Eigen::DenseBase<DerivedA> &_scan,
              Eigen::DenseBase<DerivedB> &psd, Eigen::DenseBase<DerivedC> *freqs,
-             double samplerate, bool hann = true) {
+             double samplerate) {
     auto logger = logging::createLogger("timestream.psd", nullptr);
     logger->set_level(spdlog::level::trace);
+    // decltype(auto) scan = _scan.derived();
+    // decltype(auto) forward the return type of derived() so it declares a refernce as expected
+    // if scan has storage, this is equivalent to:
+    typename eiu::const_ref<DerivedA> scan(_scan.derived());
 
     auto stat = internal::stat(scan.size(), samplerate);
     auto [npts, nfreqs, dfreq] = stat;
 
-    // create a copy of the data
-    VectorXd timedata(scan.head(npts));
-
-    if (hann) {
-        SPDLOG_LOGGER_TRACE(logger, "apply hann window");
-        const double PI = std::atan(1.0) * 4;
-        // apply hann window
-        // 0.5 - 0.5 cos([0, 2 * pi / (N - 1), ... 2 * pi * i/ (N - 1)])
-        timedata.array() *=
-            0.5 - 0.5 * ArrayXd::LinSpaced(npts, 0, 2. * PI).cos();
-    }
-
-    // do fft
+    // prepare fft
     Eigen::FFT<double> fft;
     fft.SetFlag(Eigen::FFT<double>::HalfSpectrum);
-    // fft.SetFlag(FFT<double>::Unscaled);
+    fft.SetFlag(Eigen::FFT<double>::Unscaled);
     VectorXcd freqdata;
-    fft.fwd(freqdata, timedata);
+
+    // branch according to whether applying hann
+    if constexpr (win == Hanning) {
+        SPDLOG_LOGGER_TRACE(logger, "apply hann window");
+        // we need the eval() here per the requirement of fft.fwd()
+        fft.fwd(freqdata, scan.head(npts).cwiseProduct(
+                    internal::hann(npts)).eval());
+    } else if (win == NoWindow) {
+        fft.fwd(freqdata, scan.head(npts));
+    } // note: at this point the freqdata is not normalized to NEBW yet
+
     SPDLOG_LOGGER_TRACE(logger, "fft.fwd freqdata{}",
                         logging::pprint(&freqdata));
 
     // calcualte psd
-    psd = freqdata.cwiseAbs2() /
-          (samplerate * npts); // ! this is differnece from idl code
+    // normalize to frequency resolution
+    psd = freqdata.cwiseAbs2() / dfreq;  // V/Hz^0.5
     // accound for the negative frequencies by an extra factor of 2. note: first
     // and last are 0 and nquist freq, so they only appear once
     psd.segment(1, nfreqs - 2) *= 2.;
@@ -82,23 +98,24 @@ FreqStat psd(const Eigen::DenseBase<DerivedA> &scan,
 
 // a set of psd for multiple scans with potentialy different length.
 // all individual psds are interpolated to a common frequency array
-template <typename DerivedA, typename DerivedB, typename DerivedC,
+template <Window win=Hanning, typename DerivedA, typename DerivedB, typename DerivedC,
           typename DerivedD>
 FreqStat psds(const Eigen::DenseBase<DerivedA> &scans,
               const Eigen::DenseBase<DerivedB> &scanindex,
               Eigen::DenseBase<DerivedC> &_psds,
-              Eigen::DenseBase<DerivedD> *freqs, double samplerate,
-              bool hann = true) {
+              Eigen::DenseBase<DerivedD> *freqs, double samplerate
+              ) {
     auto logger = logging::createLogger("timestream.psds", nullptr);
     logger->set_level(spdlog::level::trace);
 
-    typename Eigen::internal::ref_selector<DerivedC>::non_const_type psds(
-        _psds.derived());
+    // decltype(auto) psds = _psds.derived();
+    typename eiu::ref<DerivedC> psds(_psds.derived());
 
+    // prepare common freq grid
     Index nscans = scanindex.cols();
     VectorXI scanlengths = scanindex.row(1) - scanindex.row(0);
     // use the median length for computation
-    Index len = utils::median(scanlengths);
+    Index len = eiu::median(scanlengths);
     SPDLOG_LOGGER_TRACE(
         logger, "use median={} of scan lengths (min={} max={} nscans={})", len,
         scanlengths.minCoeff(), scanlengths.maxCoeff(), nscans);
@@ -109,28 +126,28 @@ FreqStat psds(const Eigen::DenseBase<DerivedA> &scans,
     VectorXd _freqs = internal::freq(npts, nfreqs, dfreq);
     SPDLOG_LOGGER_TRACE(logger, "use freqs{}", logging::pprint(&_freqs));
 
-    // compute psd for each scan and interpolate onto the freq array
+    // compute psd for each scan and interpolate onto the common freq grid
     psds.resize(nfreqs, nscans);
 
-    // some temporaries
+    // make some temporaries
     VectorXd tfreqs, tpsd;
-    VectorXI td(1);
+    VectorXI td(1);  // need this to store array ize for interp
+    // get the psds
     for (Index i = 0; i < nscans; ++i) {
         SPDLOG_LOGGER_TRACE(logger, "process scan {} out of {}", i + 1, nscans);
-        internal::psd(scans.segment(scanindex(0, i), scanlengths(i)), tpsd,
-                      &tfreqs, samplerate, hann);
+        internal::psd<win>(scans.segment(scanindex(0, i), scanlengths(i)), tpsd,
+                      &tfreqs, samplerate);
         // interpolate (tfreqs, tpsd) on to _freqs
-        td(0) = tfreqs.size();
-        SPDLOG_LOGGER_TRACE(logger, "interpolate tfreqs{} to freqs{}",
-                            logging::pprint(&tfreqs), logging::pprint(&_freqs));
+        td << tfreqs.size();
+        SPDLOG_LOGGER_TRACE(logger, "interpolate tpsd{} from tfreqs{} to freqs{}",
+                           logging::pprint(&tpsd), logging::pprint(&tfreqs), logging::pprint(&_freqs));
         SPDLOG_LOGGER_TRACE(logger, "interpolate sizes{}",
                             logging::pprint(&td));
-        SPDLOG_LOGGER_TRACE(logger, "interpolate ydata{}",
-                            logging::pprint(&tpsd));
+        // interp (tfreq, tpsd) on to freq and store the result in column i of psds
         mlinterp::interp(td.data(), nfreqs, tpsd.data(),
                          psds.data() + i * nfreqs, tfreqs.data(),
                          _freqs.data());
-        SPDLOG_LOGGER_TRACE(logger, "interpolated y{}", logging::pprint(&psds));
+        SPDLOG_LOGGER_TRACE(logger, "updated psds{}", logging::pprint(&psds));
     }
 
     SPDLOG_LOGGER_TRACE(logger, "calulated psds{}", logging::pprint(&psds));
@@ -142,43 +159,81 @@ FreqStat psds(const Eigen::DenseBase<DerivedA> &scans,
     return stat;
 }
 
-// convert psd to noise equivalent power
-//  this will consume psd
-template <typename Derived> Derived neps(Eigen::DenseBase<Derived> &&psds) {
-    // convert from V^2/Hz to V*sqrt(s)
-    return (psds.derived() / 2.).cwiseSqrt();
-}
+// The helper class eiu::MoveEnabledUnaryOp is used to wrap a lambda function and
+// provide overloaded calling signitures to allow optionally
+// "consume" the input parameter if passed in as rvalue reference
+// such as temporary objects and std::move(var).
+// Data held by parameters passed this way is transfered to the returning
+// variable at call site, e.g.
+// call "auto ret = neps(std::move(in));" will move data in "in" to
+// "ret" and apply the computation inplace on ret.
+// Also note the auto&& type of input parameter, this will allow it
+// work for different Eigen expression types
+inline auto psd2sen = eiu::MoveEnabledUnaryOp([](auto&& psd){
+    return (psd / 2.).cwiseSqrt();  // V * s^(1/2)
+});
+
+/*
+inline auto sen2psd = eiu::MoveEnabledUnaryOp([](auto&& sen){
+    return  sen.cwiseSquare() * 2.; // V^2 / Hz^(1/2)
+});
+*/
 
 } // namespace internal
 
 // this one will be implemented to incorporate the convertion factors FCF, FEC,
 // etc. to calibrat the signal
 //
-// this will modify signal inplace
+/*
 template <typename Derived>
-void calibrate(Eigen::DenseBase<Derived> &signal, double gain) {}
+inline auto calibrate = eiu::MoveEnabledUnaryOp([](
+        auto&& signal,
+        double gain, double gain_error, double fec, double fec_error, double fcf, double fcf_error
+                                                ) {
+    return signal * gain / fec * fcf;
+}
+);
+*/
 
 template <typename DerivedA, typename DerivedB, typename DerivedC,
           typename DerivedD>
 void sensitivity(
     const Eigen::DenseBase<DerivedA> &scans,
     const Eigen::DenseBase<DerivedB> &scanindex,
-    Eigen::DenseBase<DerivedC> &sensitivities, // NEFD
-    Eigen::DenseBase<DerivedD> &noisefluxes,   // sqrt(integ (NeFD^2 df))
-    double samplerate, double gain, Interval<double> freqrange = {3., 5.}) {
+    Eigen::DenseBase<DerivedC> &sensitivities, // V * s^(1/2)
+    Eigen::DenseBase<DerivedD> &noisefluxes,   // V, = sqrt(\int PSD df)
+    double samplerate,
+    // double gain,
+    Interval<double> freqrange = {3., 5.}) {
+
     auto logger = logging::createLogger("timestream.sensitivity", nullptr);
     logger->set_level(spdlog::level::trace);
 
     // get psds
     MatrixXd tpsds;
-    auto [npts, nfreqs, dfreq] = internal::psds(
-        scans, scanindex, tpsds, utils::ei_nullptr(), samplerate, true);
-    // get nep from psds
-    MatrixXd neps = internal::neps(std::move(tpsds));
-    SPDLOG_LOGGER_TRACE(logger, "neps{}", logging::pprint(&neps));
+    auto [npts, nfreqs, dfreq] = internal::psds<internal::Hanning>(
+        scans, scanindex, tpsds, eiu::ei_nullptr(), samplerate);
+
+    // compute noises by integrate over all frequencies
+    noisefluxes = (tpsds * dfreq).colwise().sum().cwiseSqrt();
+    SPDLOG_LOGGER_TRACE(logger, "nosefluxes{}", logging::pprint(&noisefluxes));
+    auto meannoise = noisefluxes.mean();
+    SPDLOG_LOGGER_TRACE(logger, "meannoise={}", meannoise);
+
+    // get sensitivity in V * s^(1/2)
+    // this semantic is to indicate the tpsds is to be consumed herer
+    // i.e., the data held by tpsds will be moved to neps after the call
+    auto sens = internal::psd2sen(std::move(tpsds));
+    // to create a copy, just call the following instead
+    // MatrixXd sens = internal::psd2sen(tpsds * 2.);
+    // to defer the computation, call the following
+    // auto sens = internal::psd2sen(tpsds);
+
+    SPDLOG_LOGGER_TRACE(logger, "consumed psds{}", logging::pprint(&tpsds));
+    SPDLOG_LOGGER_TRACE(logger, "sens{}", logging::pprint(&sens));
 
     // calibrate
-    calibrate(neps, gain); // mJy/sqrt(Hz)
+    // neps = calibrate(neps, gain); // mJy/sqrt(Hz)
 
     // compute sensitivity with given freqrange
     // make use the fact that freqs = i * df to find index i
@@ -186,18 +241,13 @@ void sensitivity(
     auto i2 = static_cast<Eigen::Index>(freqrange.right() / dfreq);
     auto nf = i2 + 1 - i1;
     sensitivities =
-        neps.block(i1, 0, nf, scanindex.cols()).colwise().sum() / nf;
+        sens.block(i1, 0, nf, scanindex.cols()).colwise().sum() / nf;
     SPDLOG_LOGGER_TRACE(logger, "sensitivities{}",
                         logging::pprint(&sensitivities));
     // take a mean on the sens for representitive sens to return
     auto meansens = sensitivities.mean();
     SPDLOG_LOGGER_TRACE(logger, "meansens={}", meansens);
 
-    // compute noises by integrate over all frequencies
-    noisefluxes = (neps.array().square() * 2. * dfreq).colwise().sum().sqrt();
-    SPDLOG_LOGGER_TRACE(logger, "nosefluxes{}", logging::pprint(&noisefluxes));
-    auto meannoise = noisefluxes.mean();
-    SPDLOG_LOGGER_TRACE(logger, "meannoise={}", meannoise);
 }
 
 } // namespace timestream
