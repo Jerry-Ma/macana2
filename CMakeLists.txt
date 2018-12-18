@@ -1,30 +1,33 @@
 cmake_minimum_required(VERSION 3.12)
-if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "Do not build in-source. Please remove CMakeCache.txt and the CMakeFiles/ directory. Then build out-of-source.")
+file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
+if(EXISTS "${LOC_PATH}")
+    message(FATAL_ERROR "You cannot build in a source directory (or any directory with a CMakeLists.txt file). Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
+# set(CMAKE_MACOSX_RPATH 1)
 if (NOT APPLE)
     set(CMAKE_LINK_WHAT_YOU_USE TRUE)  # lwyu does not work with macos linker
 endif()
-set(CMAKE_CXX_STANDARD 17) # c++17
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)  # without compiler extensions like gnu++11
 if (NOT CMAKE_BUILD_TYPE)
   message(STATUS "No build type selected, default to RelWithDebInfo")
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
-# compiling options
-OPTION(WITH_OPENMP "Enable OpenMP support?" ON)
-
-# set(CMAKE_MACOSX_RPATH 1)
-# set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-project(macana2)
+project(macana2 LANGUAGES CXX C)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# load some cmake modules print out some useful info
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(cmake/PrintProperties.cmake)  # helper to print target attrs
+# -------
+# options
+# -------
+option(BUILD_SHARED_LIBS "build shared libraries" OFF)
+option(MACANA2_BUILD_TESTING "enable testing for macana2" ON)
+option(MACANA2_BUILD_PORT_TESTING "enable testing for citlali-port" ON)
+
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 find_package(Git)  # automatic git version
 set(VERSION_UPDATE_FROM_GIT 1)
 include(GetVersionFromGitTag)
@@ -37,134 +40,187 @@ message("TIME        : " ${_time_stamp})
 message("==================================================")
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gitversion.h.in
-    ${CMAKE_BINARY_DIR}/gitversion.h
+    ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/gitversion.h
     @ONLY
 )
 message("Update gitversion.h")
 
+# ------------
 # dependencies
-# TODO: better handle varieties of openmp on macos
+# ------------
+# handle dependencies pulled during configure-time
+include(FetchContent)
+
+# dependencies installed in system
 find_package(OpenMP)
 find_package(GSL REQUIRED)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
+
 # TODO: wrap these in imported targets
 find_package(NetCDF REQUIRED COMPONENTS CXX)
 find_package(CCFits REQUIRED)  # this one also find cfitsio
 find_package(CXSparse REQUIRED)
 
+# helper to print target attrs
+include(PrintProperties)
+print_target_properties(OpenMP::OpenMP_CXX)
 print_target_properties(GSL::gsl)
 print_target_properties(GSL::gslcblas)
 print_target_properties(fftw3::double::serial)
 
-# build options
-set(compile_options -Wall -Wextra -DHAVE_INLINE -fexceptions -Wno-source-uses-openmp)  # -Werror
-set(link_libraries
-    GSL::gsl GSL::gslcblas
-    fftw3::double::serial
-    ${CXSPARSE_LIBRARIES}
-    ${NETCDF_CXX_LIBRARIES}
-    ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+# setup testing/benchmarking framework
+if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        release-1.8.1
     )
-if (OpenMP_CXX_FOUND AND ${WITH_OPENMP})
-    list(APPEND link_libraries OpenMP::OpenMP_CXX)
-elseif (OpenMP_CXX_FOUND AND (NOT ${WITH_OPENMP}))
-    message("Found OpenMP, use -DWITH_OPENMP=1 to enable")
-elseif (${WITH_OPENMP})
-    message(FATAL_ERROR "Cannot find OpenMP, abort")
+    FetchContent_GetProperties(googletest)
+    if(NOT googletest_POPULATED)
+        FetchContent_Populate(googletest)
+        add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
+    enable_testing()
+    # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
+    # find_package(GTest REQUIRED)
+    include(GoogleTest)
+
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.4.1
+    )
+    FetchContent_GetProperties(benchmark)
+    if(NOT benchmark_POPULATED)
+        FetchContent_Populate(benchmark)
+        add_subdirectory(${benchmark_SOURCE_DIR} ${benchmark_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
 endif()
+
+# -------------
+# build targets
+# -------------
+# build options
+set(common_compile_options -Weverything -DHAVE_INLINE -fexceptions)  # -Werror
+set(link_libraries
+    )
+
 set(include_directories
     {CMAKE_BINARY_DIR}   # version header
-    ${CXSPARSE_INCLUDE_DIRS}
-    ${NETCDF_INCLUDE_DIRS}
 )
 
-# manana core
-add_library(
-    macana-core OBJECT
-    Analysis/AnalParams.cpp
-    Analysis/SimParams.cpp
-    Clean/AzElTemplateCalculator.cpp
-    Clean/Clean.cpp
-    Clean/Clean2dStripe.cpp
-    Clean/CleanBspline.cpp
-    Clean/CleanHigh.cpp
-    Clean/CleanPCA.cpp
-    Clean/CleanSelector.cpp
-    Mapmaking/Coaddition.cpp
-    Mapmaking/CompletenessSim.cpp
-    Mapmaking/Map.cpp
-    Mapmaking/NoiseRealizations.cpp
-    Mapmaking/Observation.cpp
-    Mapmaking/PointSource.cpp
-    Mapmaking/WienerFilter.cpp
-    Observatory/Array.cpp
-    Observatory/Detector.cpp
-    Observatory/Telescope.cpp
-    Observatory/TimePlace.cpp
-    Simulate/MapNcFile.cpp
-    Simulate/SimulationInserter.cpp
-    Simulate/Subtractor.cpp
-    Sky/Source.cpp
-    Sky/astron_utilities.cpp
-    Utilities/BinomialStats.cpp
-    Utilities/GslRandom.cpp
-    Utilities/SBSM.cpp
-    Utilities/convolution.cpp
-    Utilities/gaussFit.cpp
-    Utilities/mpfit.cpp
-    Utilities/sparseUtilities.cpp
-    Utilities/tinyxml2.cpp
-    Utilities/vector_utilities.cpp
-    Sky/Novas/eph_manager.c
-    Sky/Novas/novas.c
-    Sky/Novas/novascon.c
-    Sky/Novas/nutation.c
-    Sky/Novas/readeph0.c
-    Sky/Novas/solsys1.c
+# process port lib
+add_subdirectory(port)
+
+# target definitions
+# lib
+add_library(macana2 STATIC)
+target_include_directories(macana2
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}
+        ${CXSPARSE_INCLUDE_DIRS}
+        ${NETCDF_INCLUDE_DIRS}
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas
     )
-target_include_directories(
-    macana-core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/Sky/Novas
-    ${include_directories}
+target_link_libraries(macana2
+    PUBLIC
+        OpenMP::OpenMP_CXX
+        GSL::gsl GSL::gslcblas
+        fftw3::double::serial
+        ${CXSPARSE_LIBRARIES}
+        ${NETCDF_CXX_LIBRARIES}
+        ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+        port
     )
-target_link_libraries(
-    macana-core PUBLIC
-    ${link_libraries}
+target_compile_options(macana2
+    PUBLIC
+        -fexceptions
+    PRIVATE
+        -DHAVE_INLINE
+        -Wall -Wextra  -Wno-source-uses-openmp
+        )  # -Werror
+target_sources(macana2
+    PRIVATE
+        Analysis/AnalParams.cpp
+        Analysis/SimParams.cpp
+        Clean/AzElTemplateCalculator.cpp
+        Clean/Clean.cpp
+        Clean/Clean2dStripe.cpp
+        Clean/CleanBspline.cpp
+        Clean/CleanHigh.cpp
+        Clean/CleanPCA.cpp
+        Clean/CleanSelector.cpp
+        Mapmaking/Coaddition.cpp
+        Mapmaking/CompletenessSim.cpp
+        Mapmaking/Map.cpp
+        Mapmaking/NoiseRealizations.cpp
+        Mapmaking/Observation.cpp
+        Mapmaking/PointSource.cpp
+        Mapmaking/WienerFilter.cpp
+        Observatory/Array.cpp
+        Observatory/Detector.cpp
+        Observatory/Telescope.cpp
+        Observatory/TimePlace.cpp
+        Simulate/MapNcFile.cpp
+        Simulate/SimulationInserter.cpp
+        Simulate/Subtractor.cpp
+        Sky/Source.cpp
+        Sky/astron_utilities.cpp
+        Utilities/BinomialStats.cpp
+        Utilities/GslRandom.cpp
+        Utilities/SBSM.cpp
+        Utilities/convolution.cpp
+        Utilities/gaussFit.cpp
+        Utilities/mpfit.cpp
+        Utilities/sparseUtilities.cpp
+        Utilities/tinyxml2.cpp
+        Utilities/vector_utilities.cpp
+        Sky/Novas/eph_manager.c
+        Sky/Novas/novas.c
+        Sky/Novas/novascon.c
+        Sky/Novas/nutation.c
+        Sky/Novas/readeph0.c
+        Sky/Novas/solsys1.c
     )
-target_compile_options(
-    macana-core PUBLIC
-    ${compile_options})
 
-# setup main executables
-# TODO better separate the dependances for macana-core from the main execs
-set(macanap_incs)
-set(macanap_libs macana-core)
+# macana2 executables
+add_executable(macanap macanap.cpp)
+target_link_libraries(macanap PRIVATE macana2)
 
-set(beammap_incs)
-set(beammap_libs macana-core)
+add_executable(beammap beammap.cpp)
+target_link_libraries(beammap PRIVATE macana2)
 
-# setup utility executables
-set(fitswriter_incs ${CMAKE_CURRENT_SOURCE_DIR}/include)
-set(fitswriter_libs ${NETCDF_CXX_LIBRARIES} ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY})
+add_executable(fitswriter fitswriter.cpp)
+target_include_directories(fitswriter
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}
+        ${NETCDF_INCLUDE_DIRS}
+    )
+target_link_libraries(fitswriter
+    PRIVATE
+        ${NETCDF_CXX_LIBRARIES}
+        ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
+    )
+add_custom_command(TARGET macanap
+    POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/config
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apDefault.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apDefault.xml
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apSimulate.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apSimulate.xml
+)
+add_custom_command(TARGET beammap
+    POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/config
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apbDefault.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apbDefault.xml
+)
 
-# build
-set(exec_list macanap beammap fitswriter)
-foreach(exec ${exec_list})
-    add_executable(${exec})
-    target_sources(
-        ${exec} PRIVATE
-        ${exec}.cpp
-        )
-    target_include_directories(
-        ${exec} PRIVATE
-        ${${exec}_incs}
-        )
-    target_link_libraries(
-        ${exec} PRIVATE
-        ${${exec}_libs}
-        )
-endforeach(exec ${exec_list})
+
+if (MACANA2_BUILD_TESTING)
+    add_subdirectory(test)
+endif()
 
 ## docs
 # https://vicrucann.github.io/tutorials/quick-cmake-doxygen/

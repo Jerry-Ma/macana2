@@ -12,6 +12,8 @@ using namespace std;
 #include "astron_utilities.h"
 #include "vector_utilities.h"
 
+#include "../port/include/port_timestream_sensitivity.h"
+
 ///default constructor
 /** All that happens here is that all pointers are initilized.
     All the real action happens in initialize() below.
@@ -772,162 +774,17 @@ void Detector::setFcf(double f)
 //-Vishnu
 double Detector::calculateSensitivity(Telescope* tel)
 {
-  int nScans = tel->scanIndex.ncols();
-  double* scanLengths = new double[nScans];
-  for(int i=0;i<nScans;i++){
-    scanLengths[i] = tel->scanIndex[1][i] - tel->scanIndex[0][i];
-  }
-  double npts_scans = median(scanLengths, nScans);
-  npts_scans = 2*(npts_scans/2);
-  int nfreqs = npts_scans/2  + 1;
-  double* fa = new double[nfreqs];
-  for(int i=0;i<nfreqs;i++){
-    fa[i] = (double)(i)/(nfreqs-1)*samplerate/2.;
-  }
-
-  MatDoub psds(nScans, nfreqs, 0.);
-
-  for(int i=0;i<nScans;i++){
-    int si=tel->scanIndex[0][i];
-    int ei=tel->scanIndex[1][i] + 1;
-    int npts = ei - si;
-    if(npts % 2 == 1){
-      npts--;
-    }
-
-    //get timestream values
-    VecDoub psdarr(npts);
-    for(int j=si;j<si+npts;j++){
-      psdarr[j-si] = hValues[j];
-    }
-
-    //apply hanning window
-    VecDoub hann = hanning(npts);
-    for(int j=0;j<npts;j++){
-      psdarr[j] *= hann[j];
-    }
-
-    //do fft
-    fftw_complex *in;
-    fftw_complex *out;
-    fftw_plan p;
-
-    #pragma omp critical (FFT)
-    {
-      in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*npts);
-      out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*npts);
-      p = fftw_plan_dft_1d(npts, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-    }
-
-    for(int j=0;j<npts;j++){
-      in[j][0] = psdarr[j];
-      in[j][1] = 0.;
-    }
-
-    fftw_execute(p);
-
-    //prepare freqarr and modify freqarray
-    double delFreq = samplerate/npts;
-    VecDoub freqarr(npts);
-    for(int j=0;j<npts;j++){
-      freqarr[j] = delFreq*(j - (npts-1)/2);
-    }
-    VecDoub tmp(npts);
-
-    for(int j=0;j<npts;j++){
-      tmp[j] = freqarr[j];
-    }
-
-    for(int j=0;j<npts/2;j++){
-      freqarr[j] = tmp[j+npts/2];
-      freqarr[j+npts/2] = tmp[j];
-    }
-
-    for(int j=0;j<npts;j++){
-      psdarr[j] = (pow(out[j][0],2) - pow(out[j][1],2))/delFreq;
-    }
-
-    #pragma omp critical (FFT)
-    {
-      fftw_destroy_plan(p);
-      fftw_free(in);
-      fftw_free(out);
-    }
-
-    VecDoub temp(psdarr);
-    VecDoub temp2(freqarr);
-
-    psdarr.resize(npts/2);
-    freqarr.resize(npts/2);
-
-    for(int j=0;j<npts/2;j++){
-      psdarr[j] = temp[j];
-      freqarr[j] = temp2[j];
-    }
-
-    for(int j=1;j<(npts+1)/2-1;j++){
-      psdarr[j] = psdarr[j] * 2;
-    }
-
-    //pretty sure psdarr and freqarr are comparable to end calc_psd from IDL utilities
-
-    //time to interpolate
-    double* output = new double[nfreqs];
-    interpolateLinear(freqarr, psdarr, npts/2, fa, output, nfreqs);
-
-    for(int j=0;j<nfreqs;j++){
-      psds[i][j] = output[j];
-    }
-  }
-  
-  for(int i=0;i<nScans;i++){
-    for(int j=0;j<nfreqs;j++){
-      psds[i][j] = sqrt(psds[i][j])/sqrt(2.);
-    }
-  }
-  //put in transpose and calibration line here
-
-  VecDoub freq_range(2);
-  freq_range[0] = 3.; //hardcoded rn
-  freq_range[1] = 5.; //hardcoded as well
-
-  int counter = 0;
-
-  for(int i=0;i<nfreqs;i++){
-    if(fa[i] >=freq_range[0] && fa[i] <=freq_range[1]){
-      counter++;
-    }
-  }
-
-  VecInt goodIndices(counter);
-  counter = 0;
-  for(int i=0;i<nfreqs;i++){
-    if(fa[i] >=freq_range[0] && fa[i] <=freq_range[1]){
-      goodIndices[counter] = i;
-      counter++;
-    }
-  }
-
-  VecDoub scan_sens(nScans, 0.);
-  VecInt counters(nScans, 0);
-  for(int i=0;i<nScans;i++){
-    for(int j=0;j<counter;j++){
-      if(psds[i][goodIndices[j]] == psds[i][goodIndices[j]]){
-        scan_sens[i] += psds[i][goodIndices[j]];
-        counters[i]++;
-      }
-    }
-  }
-
-  double sum = 0;
-
-  for(int i=0;i<nScans;i++){
-    scan_sens[i] /= counters[i];
-    sum += scan_sens[i];
-  }
-
-  sensitivity = sum / nScans;
-
+  using namespace Eigen;
+  // prepare eigen containers
+  VectorXd scans = Map<VectorXd>(&hValues[0], hValues.size());
+  MatrixXI scanindex = Map<Matrix<int, Dynamic, Dynamic, RowMajor>>(tel->scanIndex[0], tel->scanIndex.nrows(), tel->scanIndex.ncols()).cast<Index>();
+  auto logger = logging::createLogger("detector.sensitivity", this);
+  SPDLOG_LOGGER_TRACE(logger, "scans{}", logging::pprint(&scans));
+  SPDLOG_LOGGER_TRACE(logger, "scanindex{}", logging::pprint(&scanindex));
+  MatrixXd sensitivities;
+  MatrixXd noisefluxes;
+  timestream::sensitivity(scans, scanindex, sensitivities, noisefluxes, samplerate, {3., 5.});
+  sensitivity = sensitivities.mean();
   return sensitivity;
 }
 
