@@ -1,30 +1,11 @@
 project(port_test LANGUAGES CXX C)
 
-FetchContent_Declare(
-    spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG        v1.x
-)
-FetchContent_GetProperties(spdlog)
-if(NOT spdlog_POPULATED)
-    FetchContent_Populate(spdlog)
-    add_subdirectory(${spdlog_SOURCE_DIR} ${spdlog_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
+FetchContentHelper(spdlog https://github.com/gabime/spdlog.git v1.x)
+FetchContentHelper(fmt https://github.com/fmtlib/fmt.git 5.2.1)
 print_target_properties(spdlog::spdlog)
-
-FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG        5.2.1
-)
-FetchContent_GetProperties(fmt)
-if(NOT fmt_POPULATED)
-    FetchContent_Populate(fmt)
-    add_subdirectory(${fmt_SOURCE_DIR} ${fmt_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
 print_target_properties(fmt::fmt)
-find_package(OpenCV)
 
+find_package(OpenCV)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Ceres REQUIRED COMPONENTS C++11)
 
@@ -43,8 +24,8 @@ target_link_libraries(port
     PUBLIC
         spdlog::spdlog
         fmt::fmt
-        ceres
         Eigen3::Eigen
+        ceres
     )
 
 add_executable(port_test EXCLUDE_FROM_ALL)

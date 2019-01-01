@@ -77,33 +77,20 @@ The binaries will be in `build/bin/`.
 
 ##### `beammap_gui`
 
-The `beammap_gui` is built using `Qt`. `qmake` from `Qt` is needed to generate
-the `Makefile` to build the executable.
+The `beammap_gui` is built using `Qt`.
 
-* Install `Qt` and `qmake`
+* Install `Qt`
 
     see <https://www.qt.io/download> and more on <http://doc.qt.io/qt-5/gettingstarted.html>.
 
-    Once installed, `qmake` could be accessed from commandline with its full path:
+    Once installed, the Qt libraries are in
 
-        <Qt install path>/<Qt version>/clang_64/bin/qmake
-
-    e.g.,
-
-        /Applications/Qt/5.11.2/clang_64/bin/qmake
-
+        <Qt install path>/<Qt version>/clang_64/lib
 
 ##### `macana2_test` and `port_test`
 
 Both of these include unit tests that are written using the Google Test
-Framework. To compile these programs, one can use either `qmake` or `cmake`
-
-To use `qmake`, one has to install Google Test Framework separately.
-Google Test, however, is not available in Homebrew by default, but we could still
-install it with a custom recipe by
-[Kronuz](https://gist.githubusercontent.com/Kronuz/96ac10fbd8472eb1e7566d740c4034f8/raw/gtest.rb):
-
-    brew install --HEAD https://gist.githubusercontent.com/Kronuz/96ac10fbd8472eb1e7566d740c4034f8/raw/gtest.rb
+Framework.
 
 The `cmake` does not use Google Test as an external dependency, instead it will
 pull the source code during the build time. Therefore, we don't need to install
@@ -111,28 +98,24 @@ Google Test separately.
 
 #### Build development programs
 
-Once the additional dependencies are installed, we can build the development programs using `qmake`:
-
-    cd macana2
-    mkdir qtbuild
-    cd qtbuild
-    /path/to/qmake ../macana2.pro
-
-Note: There might be issues running qmake if `Qt` is not installed in a
-standard location (such as `/Applications/Qt` for macOS). It is recommended to
-use `Qt Creator` to configure the building environment, as well as build and
-run the project.
+The recommended IDE to work with these programs is Qt Creator. Other IDEs
+should work, but are not tested.
 
 Caveat: In `Qt Creator`, the default "Run" settings under "Project" tab may have "Add build library search path to ..." checked.
 Uncheck if the program could not find the shared/dylib libraries at runtime.
 
-
-Or using cmake to build the unit tests:
+To build the unit tests, assuming we use
+Qt 5.11.2 from `/Applications/Qt` (the default Qt installation path on macOS):
 
     cd macana2/build
     cmake ..
     make macana2_test
     make port_test
+
+To build `beammap_gui`, one has to specify the path to Qt:
+
+    cmake .. -DQt5_PREFIX=/Applications/Qt/5.11.2/clang_64
+    make beammap_gui
 
 ## Run `Macana2`
 
@@ -144,13 +127,11 @@ The executables including `macanap` and `beammap` reside in `build/bin/`, e.g.,
 
 ### Development programs
 
-The `beammap_gui` executable is in `qtbuild/beammap_gui/`.
+The `beammap_gui` executable is in `build/beammap_gui/`.
 
-The unit tests `macana2_test` is in `qtbuild/test/` or `build/test`, depending on
-which make-tool is used.
+The unit tests `macana2_test` is in `build/test/`.
 
-The unit tests `port_test` is in `qtbuild/port` or `build/port`, depending on
-which make-tool is used.
+The unit tests `port_test` is in `build/port`.
 
 
 ## Documentation
