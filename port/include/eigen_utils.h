@@ -10,6 +10,8 @@ namespace Eigen {
 
 using VectorXI = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, 1>;
 using MatrixXI = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, Eigen::Dynamic>;
+using VectorXb = Eigen::Matrix<bool, Eigen::Dynamic, 1>;
+using MatrixXb = Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic>;
 
 } // namespace Eigen
 

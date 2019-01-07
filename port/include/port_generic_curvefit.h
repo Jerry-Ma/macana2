@@ -6,6 +6,7 @@
 #include <unsupported/Eigen/NonLinearOptimization>
 
 #include "logging.h"
+#include "eigen_utils.h"
 
 namespace generic {
 

@@ -17,6 +17,7 @@ target_sources(port
     PRIVATE
         port_generic_curvefit.cpp
         port_timestream_sensitivity.cpp
+        port_timestream_pcaclean.cpp
     )
 target_include_directories(port
     PUBLIC
@@ -40,6 +41,7 @@ target_sources(port_test
     PRIVATE
         test/test_port_generic_curvefit.cpp
         test/test_port_timestream_sensitivity.cpp
+        test/test_port_timestream_pcaclean.cpp
         test/test_main.cpp
     )
 target_include_directories(port_test

@@ -11,8 +11,7 @@
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-
-#include <eigen_utils.h>
+#include <Eigen/Core>
 
 namespace logging {
 

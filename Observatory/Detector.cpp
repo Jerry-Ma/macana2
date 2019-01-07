@@ -779,8 +779,8 @@ double Detector::calculateSensitivity(Telescope* tel)
   VectorXd scans = Map<VectorXd>(&hValues[0], hValues.size());
   MatrixXI scanindex = Map<Matrix<int, Dynamic, Dynamic, RowMajor>>(tel->scanIndex[0], tel->scanIndex.nrows(), tel->scanIndex.ncols()).cast<Index>();
   auto logger = logging::createLogger("detector.sensitivity", this);
-  SPDLOG_LOGGER_TRACE(logger, "scans{}", logging::pprint(&scans));
-  SPDLOG_LOGGER_TRACE(logger, "scanindex{}", logging::pprint(&scanindex));
+  SPDLOG_LOGGER_TRACE(logger, "scans{}", logging::pprint(scans));
+  SPDLOG_LOGGER_TRACE(logger, "scanindex{}", logging::pprint(scanindex));
   MatrixXd sensitivities;
   MatrixXd noisefluxes;
   timestream::sensitivity(scans, scanindex, sensitivities, noisefluxes, samplerate, {3., 5.});
