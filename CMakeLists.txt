@@ -16,6 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 project(macana2 LANGUAGES CXX C)
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -28,7 +29,6 @@ option(MACANA2_BUILD_TESTING "build tests for macana2" ON)
 option(MACANA2_BUILD_PORT_TESTING "build tests for citlali-port" ON)
 option(MACANA2_BUILD_BEAMMAP_GUI "build beammap GUI" ON)
 
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 find_package(Git)  # automatic git version
 set(VERSION_UPDATE_FROM_GIT 1)
 include(GetVersionFromGitTag)
@@ -55,7 +55,7 @@ set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${cxx_compiler_prefix}")
 # dependencies
 # ------------
 
-# dependencies installed systemwide
+# dependencies installed system-wide
 find_package(OpenMP)
 find_package(GSL REQUIRED)
 foreach(gsl_target IN ITEMS GSL::gsl GSL::gslcblas)

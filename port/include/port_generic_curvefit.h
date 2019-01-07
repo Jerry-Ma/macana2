@@ -19,41 +19,27 @@ struct DenseFunctor
         InputsAtCompileTime = NX,
         ValuesAtCompileTime = NY
     };
-
     using Scalar = _Scalar;
     using InputType = Matrix<Scalar,InputsAtCompileTime, 1>;
     using ValueType = Matrix<Scalar,ValuesAtCompileTime, 1>;
-
     constexpr static std::string_view name = "functor";
-    DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {
-        logger = logging::createLogger(this->name, this);
+    template<typename OStream, typename _Functor>
+    friend OStream &operator<<(OStream &os, const _Functor& f) {
+        return os << f.name << "<" << static_cast<int>(_Functor::InputsAtCompileTime) << ", " << static_cast<int>(_Functor::ValuesAtCompileTime) << ">(" << f.inputs() << ", " << f.values() << ")";
     }
-    // default
+
+    DenseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
     DenseFunctor(): DenseFunctor(InputsAtCompileTime, ValuesAtCompileTime) {}
 
     int inputs() const { return m_inputs; }
     int values() const { return m_values; }
 
-    // operator()
-    // should be defined in subclasses
-    /*
-    template<typename OStream, typename Functor>
-    friend OStream &operator<<(OStream &os, const Functor& f)
-    {
-        return os << f.logger->name();
-    }
-    */
-    template<typename OStream, typename _Functor>
-    friend OStream &operator<<(OStream &os, const _Functor& f)
-    {
-        return os << f.name << "<" << static_cast<int>(_Functor::InputsAtCompileTime) << ", " << static_cast<int>(_Functor::ValuesAtCompileTime) << ">(" << f.inputs() << ", " << f.values() << ")";
-    }
+    // operator()  // should be defined in subclasses
 
 protected:
     int m_inputs = InputsAtCompileTime;
     int m_values = ValuesAtCompileTime;
 
-    std::shared_ptr<spdlog::logger> logger;
 };
 
 
@@ -70,37 +56,23 @@ struct Model: DenseFunctor<double, NP, Dynamic>
     using DataType = Matrix<double, Dynamic, Dynamic>;
     using InputDataType = Matrix<double, Dynamic, ND>;
     using InputDataBasisType = Matrix<double, Dynamic, 1>;
-
     constexpr static std::string_view name = "model";
+
+    // constructors
     // via known size of params
-    Model(int inputs): _Base(inputs, Dynamic), params(inputs) {
-        this->logger = logging::createLogger(Model::name, this);
-    }
+    Model(int inputs): _Base(inputs, Dynamic), params(inputs) {}
     // via copy of params
     Model(const typename _Base::InputType& params): Model(static_cast<int>(params.size())) {this->params=params;}
     // via initializer list of params
-    Model(std::initializer_list<double> params): Model(static_cast<int>(params.size()))
-    {
+    Model(std::initializer_list<double> params): Model(static_cast<int>(params.size())) {
         int i = 0;
         for (auto& p: params) {
             this->params(i) = p;
             ++i;
         }
     }
-    // default
     Model(): Model(Model::InputsAtCompileTime) {}
 
-    /*
-    // via varadic template for cleaner syntax
-    template <typename... Ts>
-    Model(Ts... xs) : _Base(sizeof...(Ts),  Dynamic), m_params(sizeof...(Ts))
-    {
-        // only accept double as required by the Model class
-        static_assert((std::is_same<Ts, double>::value && ...));
-        // populate m_params
-        for (int i = 0; const auto& x: {xs...}) {m_params[i++] = x;
-    }
-    */
     typename Model::InputType params;
 
     // eval()
@@ -116,8 +88,7 @@ struct Model: DenseFunctor<double, NP, Dynamic>
     // cound be defined to make it semantically clear for what data type it works with
 
     template <typename T=InputDataType>
-    typename std::enable_if<ND == 2, T>::type meshgrid(const InputDataBasisType& x, const InputDataBasisType& y) const
-    {
+    typename std::enable_if<ND == 2, T>::type meshgrid(const InputDataBasisType& x, const InputDataBasisType& y) const {
         // column major
         // [x0, y0,] [x1, y0] [x2, y0] ... [xn, y0] [x0, y1] ... [xn, yn]
         const long nx = x.size(), ny = y.size();
@@ -137,20 +108,11 @@ struct Model: DenseFunctor<double, NP, Dynamic>
         return xy;
     }
 
-    /*
-    template<typename OStream, typename _Model>
-    friend OStream &operator<<(OStream &os, const _Model& m)
-    {
-        return os << m.name << "(NP=" << static_cast<int>(_Model::InputsAtCompileTime) << ",ND=" << static_cast<int>(_Model::DimensionsAtCompileTime) << ")";
-    }
-    */
-
-    typename Model::InputType transform(const typename Model::InputType& p) const
-    {
+    // for applying variable substitution
+    typename Model::InputType transform(const typename Model::InputType& p) const {
         return p;
     }
-    typename Model::InputType inverseTransform(const typename Model::InputType& p) const
-    {
+    typename Model::InputType inverseTransform(const typename Model::InputType& p) const {
         return p;
     }
 
@@ -158,23 +120,22 @@ struct Model: DenseFunctor<double, NP, Dynamic>
         std::string name = "unnammed";
         bool fixed = false;
         bool bounded = false;
-        double lower = - std::numeric_limits<double>::infinity();
-        double upper = std::numeric_limits<double>::infinity();
+        eiu::Interval<double> bounds = {};
     };
     //std::vector<Parameter> param_settings{};
+    // should be populated in models
 };
 
 
 struct Gaussian1D: Model<3, 1> // 3 params, 1 dimen
 {
     constexpr static std::string_view name = "gaussian1d";
+
     using Model<3, 1>::Model; // model constructors
     Gaussian1D(double amplitude=1., double mean=0., double stddev=1.);
 
     ValueType eval(const InputType& p, const InputDataType& x) const;
-    // no meshgrid needed here
 
-    // convinient methods
     ValueType operator() (const InputType& p, const InputDataType& x) const;
     ValueType operator() (const InputDataType& x) const;
     std::vector<Parameter> param_settings{
@@ -187,14 +148,13 @@ struct Gaussian1D: Model<3, 1> // 3 params, 1 dimen
 struct Gaussian2D: Model<6, 2>  // 6 params, 2 dimen
 {
     constexpr static std::string_view name = "gaussian2d";
+
     using Model<6, 2>::Model; // model constructors;
     Gaussian2D(double amplitude=1., double xmean=0., double ymean=0., double xstddev=1., double ystddev=1., double theta=0.);
-    ~Gaussian2D(){}
 
     // operates on meshgrid xy of shape (ny * nx, 2), return a flat vector
     ValueType eval(const InputType& p, const InputDataType& xy) const;
 
-    // convinient methods
     // operates on x and y coords separately. return a (ny, nx) matrix
     DataType operator() (
             const InputType& p,
@@ -207,14 +167,13 @@ struct Gaussian2D: Model<6, 2>  // 6 params, 2 dimen
     InputType transform(const InputType& p) const;
     InputType inverseTransform(const InputType& p) const;
 
-    const double PI = std::atan(1.0) * 4;
     std::vector<Parameter> param_settings{
         {"amplitude"},
         {"xmean"},
         {"ymean"},
         {"xstddev"},
         {"ystddev"},
-        {"theta", false, true, 0., PI / 2.},
+        {"theta", false, true, {0., M_PI / 2.}},
     };
 };
 
@@ -223,12 +182,10 @@ struct SymmetricGaussian2D: Model<4, 2>  // 4 params, 2 dimen
     constexpr static std::string_view name = "symmetricgaussian2d";
     using Model<4, 2>::Model; // model constructors;
     SymmetricGaussian2D(double amplitude=1., double xmean=0., double ymean=0., double stddev=1.);
-    ~SymmetricGaussian2D(){}
 
     // operates on meshgrid xy of shape (ny * nx, 2), return a flat vector
     ValueType eval(const InputType& p, const InputDataType& xy) const;
 
-    // convinient methods
     // operates on x and y coords separately. return a (ny, nx) matrix
     DataType operator() (
             const InputType& p,
@@ -253,9 +210,7 @@ struct Fitter: _Model::_Base
     using _Base = typename _Model::_Base;
     using Model = _Model;
 
-    Fitter (const Model* model, int values): _Base(model->inputs(), values), m_model(model) {
-        this->logger = logging::createLogger("fitter", this);
-    }
+    Fitter (const Model* model, int values): _Base(model->inputs(), values), m_model(model) {}
     Fitter (const Model* model): Fitter(model, Fitter::InputsAtCompileTime) {}
 
     const Model* model() const {return m_model;}
@@ -277,18 +232,16 @@ struct LSQFitter: Fitter<Model>
 {
     using _Base = Fitter<Model>;
     using JacobianType = Matrix<typename _Base::Scalar, Dynamic, Dynamic>;
-    // using QRSolver = ColPivHouseholderQR<JacobianType>;
-
     using _Base::_Base;  // the base constructors
 
     int operator() (const typename LSQFitter::InputType& tp, typename LSQFitter::ValueType& fvec) const
     {
         // tp is transformed for constraint
         fvec = (this->ydata->array() - this->model()->eval(this->model()->inverseTransform(tp), *this->xdata).array()) / this->sigma->array();
-        SPDLOG_LOGGER_TRACE(this->logger, "fit with xdata{}", logging::pprint(this->xdata));
-        SPDLOG_LOGGER_TRACE(this->logger, "         ydata{}", logging::pprint(this->ydata));
-        SPDLOG_LOGGER_TRACE(this->logger, "         sigma{}", logging::pprint(this->sigma));
-        SPDLOG_LOGGER_TRACE(this->logger, "residual{}", logging::pprint(&fvec));
+        SPDLOG_TRACE("fit with xdata{}", logging::pprint(*this->xdata));
+        SPDLOG_TRACE("         ydata{}", logging::pprint(*this->ydata));
+        SPDLOG_TRACE("         sigma{}", logging::pprint(*this->sigma));
+        SPDLOG_TRACE("residual{}", logging::pprint(fvec));
         return 0;
     }
 
@@ -309,7 +262,7 @@ Model curvefit_eigen3(
                     )
 {
     auto logger = logging::createLogger("curvefit_eigen3", &model);
-    SPDLOG_LOGGER_DEBUG(logger, "fit model {} on data{}", model, logging::pprint(&xdata));
+    SPDLOG_LOGGER_DEBUG(logger, "fit model {} on data{}", model, logging::pprint(xdata));
 
     using Fitter = LSQFitter<Model>;
     Fitter fitter(&model, ydata.size());
@@ -326,13 +279,13 @@ Model curvefit_eigen3(
     LevenbergMarquardt<LevMarLSQ, typename Model::Scalar> lm(lmlsq);
 
     VectorXd pp, tp;
-    SPDLOG_LOGGER_DEBUG(logger, "initial params{}", logging::pprint(&p));
+    SPDLOG_LOGGER_DEBUG(logger, "initial params{}", logging::pprint(p));
 
     tp = model.transform(p);  // use the transformed params to minimize
     int info = lm.minimize(tp);
     pp = model.inverseTransform(tp);  // get the minimized
 
-    SPDLOG_LOGGER_DEBUG(logger, "fitted params{}", logging::pprint(&pp));
+    SPDLOG_LOGGER_DEBUG(logger, "fitted params{}", logging::pprint(pp));
     SPDLOG_LOGGER_DEBUG(logger, "info={}, nfev={}, njev={}", info, lm.nfev, lm.njev);
     SPDLOG_LOGGER_DEBUG(logger, "fvec.squaredNorm={}", lm.fvec.squaredNorm());
     return Model(pp);;
@@ -405,8 +358,8 @@ struct CeresAutoDiffFitter: Fitter<Model>
             if (p.fixed) problem->SetParameterBlockConstant(params);
             if (p.bounded)
             {
-                problem->SetParameterLowerBound(params, i, p.lower);
-                problem->SetParameterUpperBound(params, i, p.upper);
+                problem->SetParameterLowerBound(params, i, p.bounds.left());
+                problem->SetParameterUpperBound(params, i, p.bounds.right());
             }
         }
         return problem;

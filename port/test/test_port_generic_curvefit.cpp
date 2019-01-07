@@ -53,9 +53,9 @@ protected:
         sigma.derived().resize(ny, nx);
         sigma.derived().array() = stddev;
         logger->debug("add gaussian noise of stddev={}", stddev);
-        logger->debug("noise{}", logging::pprint(&noise));
-        logger->debug("sigma{}", logging::pprint(&sigma));
-        logger->debug("data{}", logging::pprint(&data));
+        logger->debug("noise{}", logging::pprint(noise));
+        logger->debug("sigma{}", logging::pprint(sigma));
+        logger->debug("data{}", logging::pprint(data));
     }
 
     void sample0_Gaussian1D(VectorXd& xdata, VectorXd& ydata, VectorXd& sigma)
@@ -76,9 +76,9 @@ protected:
         ydata.resize(xdata.size());
         ydata = g(xdata);
         logger->debug("generate {}", g);
-        logger->debug("params{}", logging::pprint(&params));
-        logger->debug("xdata{}", logging::pprint(&xdata));
-        logger->debug("ydata{}", logging::pprint(&ydata));
+        logger->debug("params{}", logging::pprint(params));
+        logger->debug("xdata{}", logging::pprint(xdata));
+        logger->debug("ydata{}", logging::pprint(ydata));
         return g;
     }
     
@@ -93,10 +93,10 @@ protected:
         Map<VectorXd>(zdata.data(), zdata.size()) = g(xdata, ydata);
 
         logger->debug("generate {}", g);
-        logger->debug("params{}", logging::pprint(&params));
-        logger->debug("xdata{}", logging::pprint(&xdata));
-        logger->debug("ydata{}", logging::pprint(&ydata));
-        logger->debug("zdata{}", logging::pprint(&zdata));
+        logger->debug("params{}", logging::pprint(params));
+        logger->debug("xdata{}", logging::pprint(xdata));
+        logger->debug("ydata{}", logging::pprint(ydata));
+        logger->debug("zdata{}", logging::pprint(zdata));
         return g;
     }
 

@@ -2,14 +2,17 @@ project(port_test LANGUAGES CXX C)
 
 FetchContentHelper(spdlog https://github.com/gabime/spdlog.git v1.x)
 FetchContentHelper(fmt https://github.com/fmtlib/fmt.git 5.2.1)
+
 print_target_properties(spdlog::spdlog)
 print_target_properties(fmt::fmt)
 
 find_package(OpenCV)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+set_target_properties(Eigen3::Eigen PROPERTIES INTERFACE_COMPILE_DEFINITIONS "EIGEN_NO_MALLOC")
 find_package(Ceres REQUIRED COMPONENTS C++11)
 
 add_library(port STATIC)
+target_compile_definitions(port PUBLIC _USE_MATH_DEFINES)
 target_sources(port
     PRIVATE
         port_generic_curvefit.cpp
