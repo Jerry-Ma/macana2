@@ -135,6 +135,7 @@ bool CleanPCA::clean(){
       gsl_vector* eVals = gsl_vector_alloc(nDetectors);
       gsl_matrix* eVecs = gsl_matrix_alloc(nDetectors,nDetectors);
       gsl_eigen_symmv(pcaCorr,eVals,eVecs,w);
+      gsl_eigen_symmv_sort(eVals, eVecs, GSL_EIGEN_SORT_VAL_DESC);
       gsl_eigen_symmv_free(w);
       gsl_matrix_free(pcaCorr);
       
