@@ -572,14 +572,15 @@ bool Observation::writeBeammapsToNcdf(string ncdfFilename)
 
 ///write all fitParams and Errors of beammaps to NetCDF
 
-bool Observation::writeFitParamsToNcdf(string mapFile, MatDoub &fitParams)
+bool Observation::writeFitParamsToNcdf(string mapFile, MatDoub &fitParams,  Array* a)
 {
+  int* di=a->getDetectorIndices();
   NcFile ncfid = NcFile(mapFile.c_str(), NcFile::Write);
   for(int i=0;i<fitParams.nrows();i++){
     stringstream sstm;
     sstm << "beammapSignal" << i;
     NcVar* sigVar= ncfid.get_var(sstm.str().c_str());
-    sigVar->add_att("bolo_name", array->detectorNames[i].c_str());
+    sigVar->add_att("bolo_name", a->detectors[di[i]].getName().c_str());
     sigVar->add_att("dc_offset", fitParams[i][0]);
     sigVar->add_att("dc_offset_err", fitParams[i][7]);
     sigVar->add_att("dc_offset_units", "Jy");
@@ -606,6 +607,29 @@ bool Observation::writeFitParamsToNcdf(string mapFile, MatDoub &fitParams)
   return true;
 }
 
+//----------------------------- o ---------------------------------------
+
+///write all fitParams and Errors of beammaps to NetCDF
+
+bool Observation::writeSensToNcdf(string mapFile, Array* a)
+{
+  NcFile ncfid = NcFile(mapFile.c_str(), NcFile::Write);
+
+  int *di = a->getDetectorIndices();
+  size_t nDetectors = a->getNDetectors();
+  cerr << nDetectors;
+  for(int i=0;i<nDetectors;i++){
+    stringstream sstm;
+    sstm << "beammapSignal" << i;
+    NcVar* sigVar= ncfid.get_var(sstm.str().c_str());
+    sigVar->add_att("FCF", a->detectors[di[i]].getFcf());
+    sigVar->add_att("FCF_units", " mJy/nW");
+    sigVar->add_att("sensitivity", a->detectors[di[i]].getSensitivity());
+    sigVar->add_att("sensitivity_units", "(mJy s^(1/2))");
+  }
+  ncfid.close();
+  return true;
+}
 
 //----------------------------- o ---------------------------------------
 

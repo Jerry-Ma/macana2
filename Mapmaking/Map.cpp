@@ -471,6 +471,14 @@ double Map::fitToGaussian(VecDoub &pp, int deg) {
 
 //----------------------------- o ---------------------------------------
 
+double Map::fitToGaussian(VecDoub &pp, int deg, double *iguess) {
+  VecInt fixme(7, 0);
+  VecDoub fixVals(7, 0.);
+  return fitToGaussianMasked(pp, fixme, fixVals, iguess, deg);
+}
+
+//----------------------------- o ---------------------------------------
+
 /// finds the coverage cut value in weight
 /** Finds the coverage cut value in weight to be used in making a
     boolean map of good coverage and/or getting the low and high

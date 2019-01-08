@@ -74,7 +74,8 @@ class Observation
   bool writeBeammapsToFits(string filename);
   bool writeBeammapsToNcdf(string filename);
   bool writeBeammapsToBmp(string bmpFilename, int nDetectors);
-  bool writeFitParamsToNcdf(string ncdfFilename, MatDoub &fitParams);
+  bool writeFitParamsToNcdf(string ncdfFilename, MatDoub &fitParams, Array* a);
+  bool writeSensToNcdf(string ncdfFilename, Array* a);
   bool writeObservationToNcdf(string ncdfFilename);
   bool writeObservationToFits(string fitsFilename);
   bool writeObservationToBmp(string bmpFilename);

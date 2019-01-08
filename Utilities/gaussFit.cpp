@@ -8,6 +8,8 @@
 #include "mpfit.h"
 #include "vector_utilities.h"
 
+#include "Array.h"
+
 //------------------------ o -------------------------------
 //------------------------ o -------------------------------
 //------------------------ o -------------------------------
@@ -143,7 +145,10 @@ double mpGaussFit(double* params, double* params_err, double* az, double* el,
     }
   }
 
-  double xall[7] = {0., pk, 6.e-5, 6.e-5, az[peaki], el[peaki], 0.};
+
+  double xall[7] = {0., pk, 1.5e-5, 1.5e-5, az[peaki], el[peaki], 0.};
+  //double xall[7] = {0., pk, 1.5e-5, 1.5e-5, 0., 0., 0.};
+
   //define the user parameters and the initial guess
   if (iguess)
 	  memcpy(xall,iguess,sizeof(double)*7);
@@ -158,12 +163,40 @@ double mpGaussFit(double* params, double* params_err, double* az, double* el,
   //constrain the FWHM values to be positive
   mp_par pars[7];
   memset(&pars[0], 0, sizeof(pars));
+  /*
   pars[1].limited[0] = 1;
   pars[1].limits[0] = 0.;
   pars[2].limited[0] = 1;
   pars[2].limits[0] = 0.;
   pars[3].limited[0] = 1;
   pars[3].limits[0] = 0.;
+  */
+  pars[1].limited[0] = 1;
+  pars[1].limits[0] = 0.;
+  pars[2].limited[0] = 1;
+  pars[2].limits[0] = 6.*3.14159/180./3600./2.3548;
+  pars[3].limited[0] = 1;
+  pars[3].limits[0] = 6.*3.14159/180./3600./2.3548;
+
+  pars[4].limited[0] = 1;
+  //pars[4].limits[0] = -120.*3.14159/180./3600.;
+  pars[4].limits[0] = xall[4] - 30.*3.14159/180./3600.;
+  pars[5].limited[0] = 1;
+  //pars[5].limits[0] = -120.*3.14159/180./3600.;
+  pars[5].limits[0] = xall[5] - 30.*3.14159/180./3600.;
+
+  pars[2].limited[1] = 1;
+  pars[2].limits[1] = 15.*3.14159/180./3600./2.3548;
+  pars[3].limited[1] = 1;
+  pars[3].limits[1] = 15.*3.14159/180./3600./2.3548;
+
+  pars[4].limited[1] = 1;
+  //pars[4].limits[1] = 120.*3.14159/180./3600.;
+  pars[4].limits[1] = xall[4] + 30.*3.14159/180./3600.;
+  pars[5].limited[1] = 1;
+  //pars[5].limits[1] = 120.*3.14159/180./3600.;
+  pars[5].limits[1] = xall[5] + 30.*3.14159/180./3600.;
+
 
   //constrain the position angle to be between -pi/4 and pi/4
   //pars[6].limited[0] = 1;
