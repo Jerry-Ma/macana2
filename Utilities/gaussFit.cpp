@@ -161,9 +161,11 @@ double mpGaussFit(double* params, double* params_err, double* az, double* el,
   pars[1].limited[0] = 1;
   pars[1].limits[0] = 0.;
   pars[2].limited[0] = 1;
-  pars[2].limits[0] = 0.;
+  pars[2].limits[0] = 5.;
+  pars[2].limits[1] = 10.;
   pars[3].limited[0] = 1;
-  pars[3].limits[0] = 0.;
+  pars[3].limits[0] = 5.;
+  pars[3].limits[1] = 10.;
 
   //constrain the position angle to be between -pi/4 and pi/4
   //pars[6].limited[0] = 1;

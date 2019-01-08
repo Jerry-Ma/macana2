@@ -1,15 +1,8 @@
 #pragma once
 
-#pragma clang diagnostic ignored "-Wreserved-id-macro"
-#define _USE_MATH_DEFINES
 #include <cmath>
 
 #include <Eigen/Core>
-#ifndef EIGEN_NO_DEBUG
-#else
-#undef EIGEN_NO_DEBUG
-#endif // !EIGEN_NO_DEBUG
-#define EIGEN_NO_MALLOC
 
 #include <logging.h>
 
@@ -17,12 +10,17 @@ namespace Eigen {
 
 using VectorXI = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, 1>;
 using MatrixXI = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, Eigen::Dynamic>;
+using VectorXb = Eigen::Matrix<bool, Eigen::Dynamic, 1>;
+using MatrixXb = Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic>;
 
 } // namespace Eigen
 
 namespace eiu {
 
 namespace internal {
+
+// true if typename Derived manages its own data, e.g. MatrixXd, etc.
+// false if typename Derived is an expression.
 template <typename Derived>
 struct has_storage
     : std::is_base_of<Eigen::PlainObjectBase<std::decay_t<Derived>>,
@@ -30,9 +28,11 @@ struct has_storage
 
 } // namespace internal
 
+// const return type of derived()
 template <typename Derived>
 using const_ref = typename Eigen::internal::ref_selector<Derived>::type;
 
+// non-const return type of derived()
 template <typename Derived>
 using ref = typename Eigen::internal::ref_selector<Derived>::non_const_type;
 
@@ -42,12 +42,11 @@ template <typename UnaryOp> struct MoveEnabledUnaryOp {
 
     template <typename T, typename... Args>
     decltype(auto) operator()(T &&in, Args &&... args) {
-        auto logger = logging::createLogger("move_enabled_unary_op", this);
         if constexpr (std::is_lvalue_reference<T>::value ||
                       !internal::has_storage<T>::value) {
             // lvalue ref, either expression or non-expression
             // return expression that builds on top of input
-            SPDLOG_LOGGER_TRACE(logger, "passed in lvalue reference");
+            SPDLOG_TRACE("called with wrapping");
             return m_func(std::forward<T>(in),
                           std::forward<decltype(args)>(args)...);
             // NOLINTNEXTLINE(readability-else-after-return)
@@ -55,15 +54,15 @@ template <typename UnaryOp> struct MoveEnabledUnaryOp {
             // rvalue ref
             // in this case we need to call the function and update inplace
             // first and move to return
-            SPDLOG_LOGGER_TRACE(logger, "passed in rvalue reference");
+            SPDLOG_TRACE("called with moving");
             in = m_func(std::forward<T>(in),
                         std::forward<decltype(args)>(args)...);
             return std::forward<T>(in);
         }
     }
 
-  protected:
-    const UnaryOp &m_func;
+    protected:
+        const UnaryOp &m_func;
 };
 
 template <typename T = Eigen::ArrayXd> T *ei_nullptr() {

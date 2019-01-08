@@ -8,7 +8,7 @@ if (NOT APPLE)
     set(CMAKE_LINK_WHAT_YOU_USE TRUE)  # lwyu does not work with macos linker
 endif()
 if (NOT CMAKE_BUILD_TYPE)
-  message(STATUS "No build type selected, default to RelWithDebInfo")
+  message(STATUS "No build type specified, default to RelWithDebInfo")
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif()
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -16,6 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 project(macana2 LANGUAGES CXX C)
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -24,10 +25,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # options
 # -------
 option(BUILD_SHARED_LIBS "build shared libraries" OFF)
-option(MACANA2_BUILD_TESTING "enable testing for macana2" ON)
-option(MACANA2_BUILD_PORT_TESTING "enable testing for citlali-port" ON)
+option(MACANA2_BUILD_TESTING "build tests for macana2" ON)
+option(MACANA2_BUILD_PORT_TESTING "build tests for citlali-port" ON)
+option(MACANA2_BUILD_BEAMMAP_GUI "build beammap GUI" ON)
 
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 find_package(Git)  # automatic git version
 set(VERSION_UPDATE_FROM_GIT 1)
 include(GetVersionFromGitTag)
@@ -45,15 +46,21 @@ configure_file(
 )
 message("Update gitversion.h")
 
+# add compiler prefix to the search path, useful for llvm compiler on macOS
+include(GetCompilerPrefix)
+GetCompilerPrefix(cxx_compiler_prefix CXX)
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${cxx_compiler_prefix}")
+
 # ------------
 # dependencies
 # ------------
-# handle dependencies pulled during configure-time
-include(FetchContent)
 
-# dependencies installed in system
+# dependencies installed system-wide
 find_package(OpenMP)
 find_package(GSL REQUIRED)
+foreach(gsl_target IN ITEMS GSL::gsl GSL::gslcblas)
+    set_target_properties(${gsl_target} PROPERTIES INTERFACE_COMPILE_DEFINITIONS "HAVE_INLINE")
+endforeach(gsl_target)
 find_package(FFTW3 REQUIRED COMPONENTS DOUBLE SERIAL)
 
 # TODO: wrap these in imported targets
@@ -68,53 +75,33 @@ print_target_properties(GSL::gsl)
 print_target_properties(GSL::gslcblas)
 print_target_properties(fftw3::double::serial)
 
+# helper to handle dependencies pulled during configure-time
+include(FetchContentHelper)
+
 # setup testing/benchmarking framework
 if (MACANA2_BUILD_TESTING OR MACANA2_BUILD_PORT_TESTING)
-    FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG        release-1.8.1
-    )
-    FetchContent_GetProperties(googletest)
-    if(NOT googletest_POPULATED)
-        FetchContent_Populate(googletest)
-        add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR} EXCLUDE_FROM_ALL)
-    endif()
+    # gtest
+    FetchContentHelper(googletest https://github.com/google/googletest.git release-1.8.1)
     enable_testing()
     # https://gitlab.kitware.com/cmake/community/wikis/doc/tutorials/EmulateMakeCheck
     add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-    # find_package(GTest REQUIRED)
     include(GoogleTest)
-
-    FetchContent_Declare(
-        benchmark
-        GIT_REPOSITORY https://github.com/google/benchmark.git
-        GIT_TAG        v1.4.1
-    )
-    FetchContent_GetProperties(benchmark)
-    if(NOT benchmark_POPULATED)
-        FetchContent_Populate(benchmark)
-        add_subdirectory(${benchmark_SOURCE_DIR} ${benchmark_BINARY_DIR} EXCLUDE_FROM_ALL)
-    endif()
+    # google benchmark
+    FetchContentHelper(benchmark https://github.com/google/benchmark.git v1.4.1)
 endif()
 
 # -------------
 # build targets
 # -------------
-# build options
-set(common_compile_options -Weverything -DHAVE_INLINE -fexceptions)  # -Werror
-set(link_libraries
-    )
 
-set(include_directories
-    {CMAKE_BINARY_DIR}   # version header
-)
+# global build settings
+# add_compile_options(-Weverything)  # -Werror
+# include_directories({CMAKE_BINARY_DIR})  # version header
 
-# process port lib
+# citlali port lib
 add_subdirectory(port)
 
-# target definitions
-# lib
+# macana core lib
 add_library(macana2 STATIC)
 target_include_directories(macana2
     PUBLIC
@@ -139,9 +126,8 @@ target_compile_options(macana2
     PUBLIC
         -fexceptions
     PRIVATE
-        -DHAVE_INLINE
-        -Wall -Wextra  -Wno-source-uses-openmp
-        )  # -Werror
+        -Weverything
+        )
 target_sources(macana2
     PRIVATE
         Analysis/AnalParams.cpp
@@ -185,14 +171,22 @@ target_sources(macana2
         Sky/Novas/readeph0.c
         Sky/Novas/solsys1.c
     )
-
 # macana2 executables
 add_executable(macanap macanap.cpp)
 target_link_libraries(macanap PRIVATE macana2)
-
+add_custom_command(TARGET macanap
+    POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/config
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apDefault.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apDefault.xml
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apSimulate.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apSimulate.xml
+)
 add_executable(beammap beammap.cpp)
 target_link_libraries(beammap PRIVATE macana2)
-
+add_custom_command(TARGET beammap
+    POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/config
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apbDefault.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apbDefault.xml
+)
 add_executable(fitswriter fitswriter.cpp)
 target_include_directories(fitswriter
     PRIVATE
@@ -205,21 +199,13 @@ target_link_libraries(fitswriter
         ${NETCDF_CXX_LIBRARIES}
         ${CFITSIO_LIBRARY} ${CCFITS_LIBRARY}
     )
-add_custom_command(TARGET macanap
-    POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/config
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apDefault.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apDefault.xml
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apSimulate.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apSimulate.xml
-)
-add_custom_command(TARGET beammap
-    POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/config
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/config/apbDefault.xml ${CMAKE_CURRENT_BINARY_DIR}/config/apbDefault.xml
-)
-
-
+# macana2 tests
 if (MACANA2_BUILD_TESTING)
     add_subdirectory(test)
+endif()
+# macana2 beammap gui
+if (MACANA2_BUILD_BEAMMAP_GUI)
+    add_subdirectory(beammap_gui)
 endif()
 
 ## docs

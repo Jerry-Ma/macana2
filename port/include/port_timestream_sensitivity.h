@@ -78,7 +78,7 @@ FreqStat psd(const Eigen::DenseBase<DerivedA> &_scan,
     } // note: at this point the freqdata is not normalized to NEBW yet
 
     SPDLOG_LOGGER_TRACE(logger, "fft.fwd freqdata{}",
-                        logging::pprint(&freqdata));
+                        logging::pprint(freqdata));
 
     // calcualte psd
     // normalize to frequency resolution
@@ -86,12 +86,12 @@ FreqStat psd(const Eigen::DenseBase<DerivedA> &_scan,
     // accound for the negative frequencies by an extra factor of 2. note: first
     // and last are 0 and nquist freq, so they only appear once
     psd.segment(1, nfreqs - 2) *= 2.;
-    SPDLOG_LOGGER_TRACE(logger, "psd{}", logging::pprint(&psd));
+    SPDLOG_LOGGER_TRACE(logger, "psd{}", logging::pprint(psd));
 
     // make the freqency array when requested
     if (freqs) {
         freqs->operator=(internal::freq(npts, nfreqs, dfreq));
-        SPDLOG_LOGGER_TRACE(logger, "freqs{}", logging::pprint(freqs));
+        SPDLOG_LOGGER_TRACE(logger, "freqs{}", logging::pprint(*freqs));
     }
     return stat;
 }
@@ -124,7 +124,7 @@ FreqStat psds(const Eigen::DenseBase<DerivedA> &scans,
     auto stat = internal::stat(len, samplerate);
     auto [npts, nfreqs, dfreq] = stat;
     VectorXd _freqs = internal::freq(npts, nfreqs, dfreq);
-    SPDLOG_LOGGER_TRACE(logger, "use freqs{}", logging::pprint(&_freqs));
+    SPDLOG_LOGGER_TRACE(logger, "use freqs{}", logging::pprint(_freqs));
 
     // compute psd for each scan and interpolate onto the common freq grid
     psds.resize(nfreqs, nscans);
@@ -140,17 +140,17 @@ FreqStat psds(const Eigen::DenseBase<DerivedA> &scans,
         // interpolate (tfreqs, tpsd) on to _freqs
         td << tfreqs.size();
         SPDLOG_LOGGER_TRACE(logger, "interpolate tpsd{} from tfreqs{} to freqs{}",
-                           logging::pprint(&tpsd), logging::pprint(&tfreqs), logging::pprint(&_freqs));
+                           logging::pprint(tpsd), logging::pprint(tfreqs), logging::pprint(_freqs));
         SPDLOG_LOGGER_TRACE(logger, "interpolate sizes{}",
-                            logging::pprint(&td));
+                            logging::pprint(td));
         // interp (tfreq, tpsd) on to freq and store the result in column i of psds
         mlinterp::interp(td.data(), nfreqs, tpsd.data(),
                          psds.data() + i * nfreqs, tfreqs.data(),
                          _freqs.data());
-        SPDLOG_LOGGER_TRACE(logger, "updated psds{}", logging::pprint(&psds));
+        SPDLOG_LOGGER_TRACE(logger, "updated psds{}", logging::pprint(psds));
     }
 
-    SPDLOG_LOGGER_TRACE(logger, "calulated psds{}", logging::pprint(&psds));
+    SPDLOG_LOGGER_TRACE(logger, "calulated psds{}", logging::pprint(psds));
 
     // update the freqs array if requested
     if (freqs) {
@@ -216,7 +216,7 @@ void sensitivity(
 
     // compute noises by integrate over all frequencies
     noisefluxes = (tpsds * dfreq).colwise().sum().cwiseSqrt();
-    SPDLOG_LOGGER_TRACE(logger, "nosefluxes{}", logging::pprint(&noisefluxes));
+    SPDLOG_LOGGER_TRACE(logger, "nosefluxes{}", logging::pprint(noisefluxes));
     auto meannoise = noisefluxes.mean();
     SPDLOG_LOGGER_TRACE(logger, "meannoise={}", meannoise);
 
@@ -229,8 +229,8 @@ void sensitivity(
     // to defer the computation, call the following
     // auto sens = internal::psd2sen(tpsds);
 
-    SPDLOG_LOGGER_TRACE(logger, "consumed psds{}", logging::pprint(&tpsds));
-    SPDLOG_LOGGER_TRACE(logger, "sens{}", logging::pprint(&sens));
+    SPDLOG_LOGGER_TRACE(logger, "consumed psds{}", logging::pprint(tpsds));
+    SPDLOG_LOGGER_TRACE(logger, "sens{}", logging::pprint(sens));
 
     // calibrate
     // neps = calibrate(neps, gain); // mJy/sqrt(Hz)
@@ -243,7 +243,7 @@ void sensitivity(
     sensitivities =
         sens.block(i1, 0, nf, scanindex.cols()).colwise().sum() / nf;
     SPDLOG_LOGGER_TRACE(logger, "sensitivities{}",
-                        logging::pprint(&sensitivities));
+                        logging::pprint(sensitivities));
     // take a mean on the sens for representitive sens to return
     auto meansens = sensitivities.mean();
     SPDLOG_LOGGER_TRACE(logger, "meansens={}", meansens);

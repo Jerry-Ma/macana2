@@ -1,0 +1,7 @@
+function(GetCompilerPrefix var lang)
+    get_filename_component(${lang}_compiler_path ${CMAKE_${lang}_COMPILER} ABSOLUTE)
+    get_filename_component(${lang}_compiler_bin ${${lang}_compiler_path} DIRECTORY)
+    get_filename_component(${lang}_compiler_prefix ${${lang}_compiler_bin} DIRECTORY)
+    set(${var} "${${lang}_compiler_prefix}" PARENT_SCOPE)
+    message("${lang} compiler prefix: ${${lang}_compiler_prefix}")
+endfunction(GetCompilerPrefix)

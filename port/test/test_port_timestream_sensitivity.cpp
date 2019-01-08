@@ -25,7 +25,7 @@ TEST(TimeStreamSensitivityTest, sensitivity) {
                  40, 100;
 
     VectorXd sensitivities, noisefluxes;
-    timestream::sensitivity(scans, scanindex, sensitivities, noisefluxes, 64., 0.);
+    timestream::sensitivity(scans, scanindex, sensitivities, noisefluxes, 64.);
 }
 
 } // namespace
