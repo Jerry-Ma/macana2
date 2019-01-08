@@ -54,6 +54,7 @@ int main(int nArgs, char* args[])
 
   //setting up the AnalParams, TimePlace, Array, Source, and Telescope
   AnalParams* ap = new AnalParams(apXml);
+
   
   if (!ap->getBeammapping()) ap->BeamMapError("Error in beammap type xml file");
   int nFiles = ap->getNFiles();
@@ -78,6 +79,7 @@ int main(int nArgs, char* args[])
     }
     array->findMinMaxXY();
 
+
     //despiking at detector level, detector by detector
     for(int i = 0; i < array->getNDetectors(); i++){
       array->detectors[di[i]].despike(ap->getDespikeSigma());
@@ -95,7 +97,7 @@ int main(int nArgs, char* args[])
 
     //lowpass the data
     for(int i = 0; i < array->getNDetectors(); i++){
-      array->detectors[di[i]].lowpass(&array->digFiltTerms[0], array->nFiltTerms);
+       array->detectors[di[i]].lowpass(&array->digFiltTerms[0], array->nFiltTerms);
     }
 
     VecBool obsFlags(array->detectors[0].getNSamples());
@@ -167,6 +169,7 @@ int main(int nArgs, char* args[])
       di = array->getDetectorIndices();
       delete cleaner;
 
+
       if(array->getAvgTau() < 0){
         cerr << "Error opacity is less than 0.0 on file" << endl;
         return 1;
@@ -183,7 +186,7 @@ int main(int nArgs, char* args[])
       //following the cleaning, generate the beammaps
       Observation* obs = new Observation(ap);
       obs->generateBeammaps(array, telescope);
-      
+
       //grab each signal and weight map from obs and use fitToGaussian to generate fit parameters
       //on subsequent iterations, only run the fit on detectors that show percent change > cutoff
       int nrows = obs->nrows;
@@ -191,6 +194,16 @@ int main(int nArgs, char* args[])
       double pixelSize = obs->pixelSize;
       for(int i = 0; i < array->getNDetectors(); i++){
         if(needsIteration[i] == 1){
+
+          VecDoub iguess(7);
+          iguess[0] = 0;
+          iguess[1] = 0.0005;
+          iguess[2] = 2.0e-5;
+          iguess[3] = 2.0e-5;
+          iguess[4] = array->detectors[di[i]].azOffset;
+          iguess[5] = array->detectors[di[i]].elOffset;
+          iguess[6] = 0;
+
           VecDoub pp;
           string mname;
           MatDoub sig(nrows, ncols, 0.);
@@ -210,7 +223,12 @@ int main(int nArgs, char* args[])
           signal->mapFile = "";
         
           //the "120" parameter is an optional parameter that sets the size of the area to be fit"
-          signal->fitToGaussian(pp, 120);
+          //if(iteration==0){
+            //signal->fitToGaussian(pp, 120, &iguess[0]);
+          //}
+          //else{
+            signal->fitToGaussian(pp, 120);
+          //}
           for(int j = 0; j < 14; j++){
             previousFitParams[i][j] = fitParams[i][j];
             fitParams[i][j] = pp[j];
@@ -219,8 +237,7 @@ int main(int nArgs, char* args[])
           delete signal;
         }
       }
-   
-      //evaluate the percent change from the previous fit
+
       int keepGoing = 0;
       for(int i = 0; i < array->getNDetectors(); i++){
         if(needsIteration[i] == 1){
@@ -260,7 +277,7 @@ int main(int nArgs, char* args[])
              obs->writeBeammapsToFits(string(fitsMapFile));
 
           cerr << "writing fit parameters to " << mapFile << endl;
-          obs->writeFitParamsToNcdf(mapFile, fitParams);
+          obs->writeFitParamsToNcdf(mapFile, fitParams, array);
         }
 
         //for the purpose of stopping the terminating loop, but still hitting the delete obs line. 
@@ -292,6 +309,11 @@ int main(int nArgs, char* args[])
       array->detectors[di[i]].calculateSensitivity(telescope);
     }
 
+    Observation* obs = new Observation(ap);
+    string mapFile = ap->getOutBeammapNcdf();
+    cerr << "Writing Sensitivity and FCF to " << mapFile << endl;;
+    obs->writeSensToNcdf(mapFile, array);
+    delete obs;
 
     cerr << "generating bstats file" << endl;
     
