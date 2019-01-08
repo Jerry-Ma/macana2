@@ -5,88 +5,157 @@ This is to address issue #5 (https://github.com/toltec-astro/macana2/issues/5)
 This document is to walk through the steps to package the code in a way that
 minimum changes will be required during the actual porting phase.
 
+## Namespaces
+
+To minimize name clash we use the following namespace scheme:
+
+    ::citlali   // the root namespace. All public api should be wrapped within
+
+        /// namespaces of high level algorithms, grouped by the data stage
+        generic  // applicable to non-specific time of data, e.g, model fitting
+        timestream  // timestream algorithms
+        map  // map space algorithms
+
+        /// namespaces for utility functions and helpers
+        logging  // logging related
+        math  // low level math and algorithms
+        phys  // physics and astronomy related
+        telescope  // telescope related
+        ...  // could have many more of these
+        misc  // random stuff that does not fit to any sensible category
+
+        /// special namespace
+        // any functions and helpers that are not the public API should
+        // be wrapped in
+        internal  // This could be nested within any of the namespace above
+
+Examples:
+
+    ::citlali::generic::leastsq()
+    ::citlali::timestream::lowpass()
+    ::citlali::timestream::internal::psd()  // non-public, used by sensitivity()
+    ::citlali::timestream::sensitivity()
+    ::citlali::map::gaussianfit()
+    ::citlali::map::wienerfilter()
+    ::citlali::logging::pprint()  // pretty print large data array
+    ::citlali::math::sigma_clipped_stats()
+    ::citlali::math::Interval  // simple tuple-like class for a value interval
+    ::citlali::misc::ei_nullptr()  // generic pointer to use for optional out-argument
+
+
 ## Directories and Files
 
     macana2/
         port/
-            port_timestream_despike.cpp
-            port_timestream_lowpass.cpp
-            port_map_fit_gaussian.cpp
-            port_<stage>_<func>.cpp
+            timestream_despike.cpp
+            timestream_lowpass.cpp
+            generic_modelfit.cpp
+            <stage>_<func>.cpp
             ...
+            logging.cpp
+            eigen_utils.cpp
+            math_utils.cpp
+            phys_utils.cpp
+
             test/
-                test_port.cpp  // test main
-                test_port_timestream_despike.cpp
-                test_port_timestream_lowpass.cpp
-                test_port_map_fit_gaussian.cpp
-                test_port_<stage>_<func>.cpp
+                test_port.cpp
+                test_timestream_despike.cpp
+                test_timestream_lowpass.cpp
+                test_generic_modelfit.cpp
                 ...
+                test_<stage>_<func>.cpp
             data/
-                test_<sensible name>.nc
+                testdata_{name}.nc
                 ...
             include/
-                params.h
-                port_timestream_despike.h
+                timestream_lowpass.h
+                timestream_despike.h
                 ...
+                logging.h
+                eigen_utils.h
+                math_utils.h
+                phys_utils.h
 
-## port_*.cpp
+### `<stage>_<func>.{h,cpp}`
 
-The `port_*.cpp` file should contain no class but (stateless) function(s) that
-implement the algorithm to be ported, enclosed by a named namespace matches
-the data stage (timestream, map, etc.) to avoid name clash:
+These files implement functionality `func` for data stage `stage`.
+
+Types/functions that are supposed to be used/called from other modules
+(or to be short, public API) should be wrapped in namespace `<stage>`,
+while the implementation details should be guarded with namespace `internal`,
+e.g.
+
+    // timestream_lowpass.h
+    #pragma once
+
+    namespace citlali {
+    namespace timestream {
+    namespace internal {
+
+    Out foo(In in);   // function called by lowpass()
+
+    } // namespace internal
+
+    void lowpass(In in, Out out, LowpassParams lp);   // public API
+
+    struct LowpassParams {   // public API
+        enum {
+           // some useful switch
+        }
+        // some other parameter
+    };
+
+    } // namespace timestream
+    } // namespace citlali
+
+
+Arguments passed to functions usually fall into several categories
+
+* Input data
+* Output data
+* Compile-time switch/parameters
+* Run-time switch/parameters
+
+We use `Eigen::Matrix` as input/output data container. To allow passing
+general Eigen types (expressions, views, etc.), one has to use
+template, see https://eigen.tuxfamily.org/dox/TopicFunctionTakingEigenTypes.html
+
+Compile-time switches/parameters can be used to eliminate branching during run-time.
+
+Run-time switches/parameters can be optionally grouped into struct
+`<Func>Params`. Although we prefer use a flat list of arguments rather than a
+struct to make the functionality more explicit and easy to read.
+
+
+Example:
 
     namespace timestream {
 
-        void despike_<imple1>(
-            const InDataType& in, [const InDataTyle2 in2, ...]
-            OutDataType& out, [OutDataType& out out2, ...]
-            [ArgType arg [ArgType arg2] ...]
-            ) {
-            ...
-            <core algorithms>
-            ...
+    enum Impl {
+        impl1 = 0,
+        impl2 = 1
+    };
+
+    template <Impl impl=impl1, typename Derived1, typename Derived2>
+    void despike(
+        const DenseBase<Derived1>& in
+        DenseBase<Derived2>& out
+        DespikeParams dp) {
+        ...  // implement
+        if constexpr (impl == impl1) {
+        ...  // compile-time branching, C++17 needed
+        } else if constexpr (impl == impl2) {
+        ...
         }
-
-        void despike_<imple2>(
-            const InDataType& in, [const InDataTyle2 in2, ...]
-            OutDataType& out, [OutDataType& out out2, ...]
-            [ArgType arg [ArgType arg2] ...]
-            ) {
-            ...
-            <core algorithms>
-            ...
-        }
-
-    }
-
-There could be multiple implementation of the same algorithm. These should be
-differentiated by the extra suffix to the function name, e.g., `despike_cpu`,
-`despike_gpu`.
-
-The first two sets of arguments should be the input and output data. The input
-data shall be passed as const reference and the output data shall be passed as
-reference and will be populated/modified at the end of the function call.
-
-The rest of the arguments are all other tunable parameters. We prefer use a flat
-list of arguments rather than a struct to pass the parameters to make the functionality
-more explicit and easy to read.
-
-Note that for some of the functions it may be depends on tens of parameters, which
-may be too verbose. In that case, a plain struct defined in `port/include/params.h`
-that groups related parameters is desired:
-
-    // port/include/params.h
-    struct TelecopeParams
-    {
-        double arg = 0.;
-        in arg2 = 1;
         ...
     }
+    }  // namespace timestream
 
-The function body should be the actual data handling part, and it should not
+
+About the function body, it should be the actual data handling part, and it should not
 contain code that create objects to be used elsewhere outside of the scope of
-the function, instead, these objects need to be created outside and passed as
-output data.
+the function. Instead, these objects need to be created outside and passed as
+input and output data.
 
 Temporary data are OK to be created with the scope of the function while being
 aware of the extra memory pressure.
@@ -94,12 +163,12 @@ aware of the extra memory pressure.
 
 ## test/test_port_*.cpp
 
-The `test/test_port_*.cpp` is the place where tests reside.
+The `test/test_*.cpp` is the place where tests reside.
 
 ### Function level unit tests
 
-Each `port_<stage>_<func>.cpp` should comes with a
-`test_port_<stage>_<func>.cpp`, in which a test fixture is defined. A test
+Each `<stage>_<func>.{h,cpp}` should comes with a
+`test_<stage>_<func>.cpp`, in which a test fixture is defined. A test
 fixture is a class that provide the run-time of a test case, and the test body
 have full access to the members and methods to the fixture.
 
@@ -159,7 +228,7 @@ and learn the capability of it, and use. some links:
 * https://github.com/google/googletest/blob/master/googletest/docs/samples.md
 
 
-### State level test
+### Stage level test
 
 More integrated test also goes in the `port/test` folder, e.g.
 
