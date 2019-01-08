@@ -67,6 +67,8 @@ class Map
   double fitToGaussian(VecDoub &params, VecInt &fixme, VecDoub &fixVals, double *iguess=nullptr, int deg=40);
   double fitToGaussian(VecDoub &params);
   double fitToGaussian(VecDoub &params, int deg);
+  double fitToGaussian(VecDoub &params, int deg, double *iguess);
+
   double fitToGaussian();
   bool writeMapToNcdf();
   bool writeMapsToNcdf(string mapFilename);
