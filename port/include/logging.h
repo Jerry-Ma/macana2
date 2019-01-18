@@ -4,10 +4,12 @@
 #define SPDLOG_FMT_EXTERNAL
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+/*
 // remove the extra filename:lineno in trace but use function instead
 #undef SPDLOG_LOGGER_TRACE
 #define SPDLOG_LOGGER_TRACE(logger, ...)                                       \
     logger->log(spdlog::source_loc{__FUNCTION__, __LINE__}, spdlog::level::trace, __VA_ARGS__)
+*/
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>

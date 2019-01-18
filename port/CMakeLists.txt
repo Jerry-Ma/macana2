@@ -2,9 +2,14 @@ project(port_test LANGUAGES CXX C)
 
 FetchContentHelper(spdlog https://github.com/gabime/spdlog.git v1.x)
 FetchContentHelper(fmt https://github.com/fmtlib/fmt.git 5.2.1)
+FetchContentHelper(spectra https://github.com/yixuan/spectra.git v0.7.0 NO_ADD_SUBDIR)
+add_library(spectra INTERFACE)
+target_include_directories(spectra INTERFACE ${spectra_SOURCE_DIR}/include)
+
 
 print_target_properties(spdlog::spdlog)
 print_target_properties(fmt::fmt)
+print_target_properties(spectra)
 
 find_package(OpenCV)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
@@ -30,6 +35,7 @@ target_link_libraries(port
         fmt::fmt
         Eigen3::Eigen
         ceres
+        spectra
     )
 
 add_executable(port_test EXCLUDE_FROM_ALL)
@@ -60,4 +66,4 @@ add_custom_command(TARGET port_test
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/data ${CMAKE_CURRENT_BINARY_DIR}/data
     )
 add_dependencies(check port_test)
-gtest_discover_tests(port_test TEST_PREFIX "port::")
+gtest_discover_tests(port_test TEST_PREFIX "port::" DISCOVERY_TIMEOUT 10)

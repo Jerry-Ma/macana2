@@ -3,6 +3,7 @@
 #include <logging.h>
 #include <eigen_utils.h>
 #include <Eigen/Dense>
+#include <Spectra/SymEigsSolver.h>
 
 namespace timestream {
 
@@ -43,7 +44,12 @@ Index cutoffindex(const DenseBase<Derived>& evals, Index neigToCut, double cutSt
 
 } // namespace internal
 
-template <typename DerivedA, typename DerivedB, typename DerivedC>
+enum EigenSolverBackend {
+        EigenBackend = 0,
+        SpectraBackend = 1
+    };
+
+template <EigenSolverBackend backend, typename DerivedA, typename DerivedB, typename DerivedC>
 void pcaclean(
     const Eigen::DenseBase<DerivedA> &scans,
     const Eigen::DenseBase<DerivedA> &kernelscans,
@@ -74,12 +80,12 @@ void pcaclean(
     cleanedscans.derived().resize(scans.rows(), scans.cols());
     cleanedkernelscans.derived().resize(kernelscans.rows(), kernelscans.cols());
 
-    SPDLOG_LOGGER_TRACE(logger, "input data {}", logging::pprint(scans));
+    SPDLOG_TRACE("input data {}", logging::pprint(scans));
     // loop over all scans
     for (Index k = 0; k < nscans; ++k) {
         // Vector scans.segment(scanindex(0, i), scanlengths(i))
         Index npts = scanlengths(k);
-        SPDLOG_LOGGER_TRACE(logger, "process scan {} out of {}: length={}", k + 1, nscans, npts);
+        SPDLOG_TRACE("process scan {} out of {}: length={}", k + 1, nscans, npts);
         // prepare containers
         det.resize(ndetectors, npts);
         ker.resize(ndetectors, npts);
@@ -103,35 +109,68 @@ void pcaclean(
         // possibly make use of use additional corrMatrix from atmTemplate
         // pcaCorr = pcaCorr.cwiseProduct(corrMatrix)
         // compute eigen values and eigen vectors
-        // these are sorted in increasing order, which is different from IDL
-        Eigen::SelfAdjointEigenSolver<MatrixXd> solution(pcaCorr);
-        auto evals = solution.eigenvalues();
-        auto evecs = solution.eigenvectors();
-        efdet.resize(ndetectors, npts);
-        efker.resize(ndetectors, npts);
-        efdet.noalias() = evecs.adjoint() * det;
-        efker.noalias() = evecs.adjoint() * ker;
-        // find out the cutoff index for evals and do the cut
-        Index cut = internal::cutoffindex(evals, neigToCut, cutStd);
-        SPDLOG_LOGGER_TRACE(logger, "cut {} largest modes", cut);
-        efdet.bottomRows(cut).setConstant(0.);
-        efker.bottomRows(cut).setConstant(0.);
-        /*
-        if (neigToCut > 0.) {
-            efdet.bottomRows(neigToCut) = 0.;
-            efker.bottomRows(neigToCut) = 0.;
-        } else if (cutStd < 1.) {
-            throw std::runtime_error("cutStd is too small");
+        if constexpr (backend == EigenBackend) {
+            // these are sorted in increasing order, which is different from IDL
+            Eigen::SelfAdjointEigenSolver<MatrixXd> solution(pcaCorr);
+            const auto& evals = solution.eigenvalues();
+            const auto& evecs_ = solution.eigenvectors();
+            Eigen::MatrixXd evecs(evecs_);
+            // find out the cutoff index for evals and do the cut
+            Index cut = internal::cutoffindex(evals, neigToCut, cutStd);
+            SPDLOG_TRACE("cut {} largest modes", cut);
+            SPDLOG_TRACE("evals: {}", evals.tail(cut));
+            evecs.rightCols(cut).setConstant(0);
+            evecs.rightCols(cut).setConstant(0);
+            efdet.resize(ndetectors, npts);
+            efker.resize(ndetectors, npts);
+            efdet.noalias() = evecs.adjoint() * det;
+            efker.noalias() = evecs.adjoint() * ker;
+            // efdet.bottomRows(cut).setConstant(0.);
+            // efker.bottomRows(cut).setConstant(0.);
+            // create cleaned data
+            det.noalias() = evecs * efdet;
+            ker.noalias() = evecs * efker;
+       } else if constexpr (backend == SpectraBackend) {
+            // Construct matrix operation object using the wrapper class DenseSymMatProd
+            // int nev = ndetectors / 3;
+            int nev = ndetectors <= 100?ndetectors - 1:100;
+            int ncv = nev * 2.5 < ndetectors?int(nev * 2.5):ndetectors;
+            SPDLOG_TRACE("spectra eigen solver nev={} ncv={}", nev, ncv);
+            Spectra::DenseSymMatProd<double> op(pcaCorr);
+            Spectra::SymEigsSolver<double, Spectra::LARGEST_ALGE, Spectra::DenseSymMatProd<double>> eigs(&op, nev, ncv);
+            // Initialize and compute
+            eigs.init();
+            int nconv = eigs.compute();  // the results will be sorted largest first
+            // Retrieve results
+            Eigen::VectorXd evals = Eigen::VectorXd::Zero(ndetectors);
+            Eigen::MatrixXd evecs = Eigen::MatrixXd::Zero(ndetectors, ndetectors);
+            if(eigs.info() == Spectra::SUCCESSFUL) {
+                evals.head(nev) = eigs.eigenvalues();
+                evecs.leftCols(nev) = eigs.eigenvectors();
+            } else {
+                throw std::runtime_error("failed to compute eigen values");
+            }
+            efdet.resize(ndetectors, npts);
+            efker.resize(ndetectors, npts);
+            efdet.noalias() = evecs.adjoint() * det;
+            efker.noalias() = evecs.adjoint() * ker;
+            // find out the cutoff index for evals and do the cut
+            Index cut = internal::cutoffindex(evals, neigToCut, cutStd);
+            if (cut > nev) {
+                throw std::runtime_error("too few eigen values computed");
+            }
+            SPDLOG_TRACE("cut {} largest modes", cut);
+            SPDLOG_TRACE("evals: {}", evals.head(cut));
+            // here since we are computing the larget vectors, we first
+            // construct the data from the larget modes, and then subtract
+            efdet.bottomRows(ndetectors - cut).setConstant(0.);
+            efker.bottomRows(ndetectors - cut).setConstant(0.);
+            // create data to be cleaned and substract
+            det.noalias() -= evecs * efdet;
+            ker.noalias() -= evecs * efker;
+        } else {
+            static_assert(backend == EigenBackend, "UNKNOWN EIGEN SOLVER BACKEND");
         }
-        Index cutAfterIndex = internal::
-        VectorXd ev = evals.array().abs().log10();
-        auto [mev, std] = sigma_clipped_stats(ev, cutStd, cutStd);
-        double cut = pow(10, mev + cutStd * std);
-        Index cutIndex =
-        */
-        // create cleaned data
-        det.noalias() = evecs * efdet;
-        ker.noalias() = evecs * efker;
         // update cleaned data
         for (Index i = 0; i < ndetectors; ++i) {
             // SPDLOG_LOGGER_TRACE(logger, "write cleaned data {}", logging::pprint(det.row(i)));
